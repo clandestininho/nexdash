@@ -1,0 +1,31 @@
+{
+  "name": "nexdash-crm",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CRM Automático — Estúdio Milla & Lipe",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "nodemon server/index.js",
+    "dev:client": "cd client && npm run dev",
+    "start": "node server/index.js",
+    "install:all": "npm install && cd client && npm install"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@whiskeysockets/baileys": "^6.7.16",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1",
+    "sql.js": "^1.11.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "nodemon": "^3.1.9"
+  }
+}
