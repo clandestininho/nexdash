@@ -32,12 +32,12 @@ const getTransporter = () => {
 };
 
 /**
- * Sends a password reset email to the user.
+ * Sends a password reset verification code email.
  * @param {string} email Target user email
  * @param {string} name Target user name
- * @param {string} resetLink Exclusive password reset URL
+ * @param {string} code 6-digit verification code
  */
-export const sendResetPasswordEmail = async (email, name, resetLink) => {
+export const sendResetPasswordEmail = async (email, name, code) => {
   const transporter = getTransporter();
   const fromAddress = process.env.SMTP_FROM || '"NEXDASH Suporte" <suporte@nexdash.com>';
 
@@ -46,7 +46,7 @@ export const sendResetPasswordEmail = async (email, name, resetLink) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Recuperação de Senha — NEXDASH</title>
+      <title>Código de Recuperação — NEXDASH</title>
       <style>
         body {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -86,24 +86,19 @@ export const sendResetPasswordEmail = async (email, name, resetLink) => {
           font-size: 15px;
           color: #a1a1aa;
         }
-        .btn-container {
+        .code-box {
+          font-size: 32px;
+          font-weight: 850;
+          color: #e13a40;
           text-align: center;
-          margin: 35px 0;
-        }
-        .btn {
-          display: inline-block;
-          background-color: #e13a40;
-          color: #ffffff !important;
-          text-decoration: none;
-          padding: 14px 28px;
-          font-size: 14px;
-          font-weight: bold;
-          border-radius: 10px;
-          box-shadow: 0 4px 12px rgba(225,58,64,0.3);
-          transition: background-color 0.2s;
-        }
-        .btn:hover {
-          background-color: #c52f34;
+          margin: 30px auto;
+          letter-spacing: 6px;
+          background: #121214;
+          padding: 18px;
+          border-radius: 12px;
+          border: 1px dashed rgba(225, 58, 64, 0.4);
+          max-width: 240px;
+          box-shadow: 0 0 15px rgba(225, 58, 64, 0.1);
         }
         .footer {
           padding: 20px 30px;
@@ -112,10 +107,6 @@ export const sendResetPasswordEmail = async (email, name, resetLink) => {
           border-top: 1px solid #1f1f1f;
           font-size: 11px;
           color: #52525b;
-        }
-        .footer a {
-          color: #e13a40;
-          text-decoration: none;
         }
       </style>
     </head>
@@ -127,16 +118,11 @@ export const sendResetPasswordEmail = async (email, name, resetLink) => {
         <div class="content">
           <p>Olá, <strong>${name}</strong>,</p>
           <p>Recebemos uma solicitação para redefinir a senha de acesso da sua conta corporativa no <strong>NEXDASH CRM</strong>.</p>
-          <p>Para criar uma nova senha de forma segura, clique no botão abaixo. Este link expira em 15 minutos por medidas de segurança.</p>
+          <p>Utilize o código de verificação exclusivo abaixo na tela de redefinição para criar uma nova senha com segurança. Este código expira em 15 minutos.</p>
           
-          <div class="btn-container">
-            <a href="${resetLink}" class="btn" target="_blank">Redefinir Minha Senha</a>
-          </div>
+          <div class="code-box">${code}</div>
           
-          <p style="font-size: 12px; color: #71717a;">Se o botão não funcionar, copie e cole o link a seguir no seu navegador:</p>
-          <p style="font-size: 12px; word-break: break-all; color: #71717a;">${resetLink}</p>
-          
-          <p style="margin-top: 30px; border-top: 1px solid #1f1f1f; padding-top: 20px; font-size: 13px;">Se você não realizou esta solicitação, pode desconsiderar este e-mail com segurança. Sua senha atual permanecerá intacta.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #1f1f1f; padding-top: 20px; font-size: 13px; color: #71717a;">Se você não realizou esta solicitação, pode ignorar este e-mail com segurança. Sua senha atual continuará ativa.</p>
         </div>
         <div class="footer">
           NEXDASH CRM &bull; Inteligência & Automação de Vendas<br>
@@ -151,9 +137,9 @@ export const sendResetPasswordEmail = async (email, name, resetLink) => {
 Olá, ${name}!
 
 Recebemos uma solicitação para redefinir a senha de sua conta corporativa no NEXDASH CRM.
-Por favor, acesse o link abaixo para redefinir sua senha com segurança (expira em 15 minutos):
+Utilize o código de verificação abaixo na tela de redefinição para alterar sua senha (expira em 15 minutos):
 
-${resetLink}
+CÓDIGO: ${code}
 
 Se você não realizou esta solicitação, por favor desconsidere este e-mail.
 
@@ -163,7 +149,7 @@ NEXDASH CRM & Automação.
   await transporter.sendMail({
     from: fromAddress,
     to: email,
-    subject: 'Recuperação de Senha — NEXDASH CRM',
+    subject: 'Código de Recuperação — NEXDASH CRM',
     text: textContent,
     html: htmlContent,
   });

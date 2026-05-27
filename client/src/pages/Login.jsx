@@ -66,6 +66,20 @@ export default function Login() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isForgotMode, setIsForgotMode] = useState(false);
+  const [forgotStep, setForgotStep] = useState('request'); // 'request', 'code', 'success'
+  const [verificationCode, setVerificationCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // password complexity requirements
+  const checks = {
+    length: newPassword.length >= 8,
+    upper: /[A-Z]/.test(newPassword),
+    lower: /[a-z]/.test(newPassword),
+    number: /\d/.test(newPassword),
+    match: newPassword === confirmPassword && newPassword.length > 0
+  };
+
   const [activeQuote, setActiveQuote] = useState(0);
 
   const navigate = useNavigate();
@@ -147,7 +161,52 @@ export default function Login() {
         throw new Error(data.error || 'Erro ao processar solicitação.');
       }
 
-      setSuccessMessage(data.message || 'Instruções de redefinição de senha enviadas com sucesso!');
+      setSuccessMessage('Código de recuperação enviado! Verifique sua caixa de e-mail.');
+      setForgotStep('code');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+
+    if (!verificationCode || !newPassword || !confirmPassword) {
+      setError('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    if (!checks.length || !checks.upper || !checks.lower || !checks.number) {
+      setError('Por favor, atenda a todos os requisitos de segurança de senha.');
+      return;
+    }
+
+    if (!checks.match) {
+      setError('As senhas digitadas não coincidem.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: verificationCode, password: newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao redefinir senha. Verifique o código digitado.');
+      }
+
+      setSuccessMessage('Senha alterada com sucesso! Você já pode realizar o login.');
+      setForgotStep('success');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -306,7 +365,7 @@ export default function Login() {
           {!isForgotMode ? (
             <>
               {/* Social login block (decorative and sleek interface element) */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <Button 
                   type="button" 
                   variant="outline" 
@@ -314,14 +373,6 @@ export default function Login() {
                   onClick={() => handleSocialClick('Google')}
                 >
                   <GoogleIcon className="size-4 text-white" />
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
-                  onClick={() => handleSocialClick('Apple')}
-                >
-                  <AppleIcon className="size-4 text-white" />
                 </Button>
                 <Button 
                   type="button" 
@@ -428,7 +479,7 @@ export default function Login() {
           ) : (
             <>
               {/* Forgot password form */}
-              {!successMessage && (
+              {forgotStep === 'request' && (
                 <form onSubmit={handleForgotPassword} className="space-y-4">
                   {/* E-mail field */}
                   <div className="space-y-1.5">
@@ -462,11 +513,128 @@ export default function Login() {
                       </>
                     ) : (
                       <span className="text-sm font-semibold tracking-wide flex items-center gap-2">
-                        Enviar Link de Recuperação <Sparkles className="size-4 text-[#ff483d]" />
+                        Enviar Código de Recuperação <Sparkles className="size-4 text-[#ff483d]" />
                       </span>
                     )}
                   </ShinyButton>
                 </form>
+              )}
+
+              {forgotStep === 'code' && (
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  {/* Verification code field */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450 pl-0.5">
+                      Código de Recuperação (6 dígitos)
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                      <Input
+                        type="text"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="Ex: 123456"
+                        className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm font-mono tracking-widest text-center font-bold"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* New password field */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450 pl-0.5">
+                      Nova Senha
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                      <Input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Mínimo de 8 caracteres"
+                        className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Confirm password field */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450 pl-0.5">
+                      Confirmar Senha
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                      <Input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirme a nova senha"
+                        className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Complexity checklists box */}
+                  <div className="p-3 bg-zinc-950/80 border border-zinc-900 rounded-xl space-y-2 text-[10px] text-zinc-400">
+                    <span className="font-bold uppercase tracking-wider text-zinc-500">Requisitos de Segurança:</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <Check className={`size-3 shrink-0 ${checks.length ? 'text-emerald-400' : 'text-zinc-650'}`} />
+                        <span className={checks.length ? 'text-zinc-200 font-semibold' : ''}>Pelo menos 8 caracteres</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Check className={`size-3 shrink-0 ${checks.upper ? 'text-emerald-400' : 'text-zinc-650'}`} />
+                        <span className={checks.upper ? 'text-zinc-200 font-semibold' : ''}>Uma letra maiúscula (A-Z)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Check className={`size-3 shrink-0 ${checks.lower ? 'text-emerald-400' : 'text-zinc-650'}`} />
+                        <span className={checks.lower ? 'text-zinc-200 font-semibold' : ''}>Uma letra minúscula (a-z)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Check className={`size-3 shrink-0 ${checks.number ? 'text-emerald-400' : 'text-zinc-650'}`} />
+                        <span className={checks.number ? 'text-zinc-200 font-semibold' : ''}>Pelo menos um número (0-9)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 col-span-2 border-t border-zinc-900 pt-1.5">
+                        <Check className={`size-3 shrink-0 ${checks.match ? 'text-emerald-400' : 'text-zinc-650'}`} />
+                        <span className={checks.match ? 'text-zinc-200 font-semibold' : ''}>As senhas digitadas são idênticas</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submission Button */}
+                  <ShinyButton
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-11 mt-4 rounded-xl flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        <span className="text-sm font-semibold tracking-wide">Redefinindo...</span>
+                      </>
+                    ) : (
+                      <span className="text-sm font-semibold tracking-wide flex items-center gap-2">
+                        Redefinir Minha Senha <Sparkles className="size-4 text-[#ff483d]" />
+                      </span>
+                    )}
+                  </ShinyButton>
+                </form>
+              )}
+
+              {forgotStep === 'success' && (
+                <div className="space-y-4 text-center py-2">
+                  <div className="mx-auto w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 rounded-full flex items-center justify-center">
+                    <Check className="size-6 text-emerald-400" />
+                  </div>
+                  <p className="text-xs text-zinc-400 leading-relaxed max-w-xs mx-auto">
+                    Sua nova senha foi redefinida com total segurança. Você já pode acessar a plataforma utilizando suas novas credenciais corporativas.
+                  </p>
+                </div>
               )}
 
               {/* Navigation Back */}
@@ -475,6 +643,10 @@ export default function Login() {
                   type="button"
                   onClick={() => {
                     setIsForgotMode(false);
+                    setForgotStep('request');
+                    setVerificationCode('');
+                    setNewPassword('');
+                    setConfirmPassword('');
                     setError('');
                     setSuccessMessage('');
                   }}

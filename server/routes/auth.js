@@ -1,4 +1,4 @@
-import express from 'express';
+import express from 'express'; // Force All OAuth Env Reload
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
@@ -244,7 +244,10 @@ router.post('/subscribe', authenticateToken, (req, res) => {
   }
 });
 
-// POST /api/auth/forgot-password - Dispatch password reset token links via SMTP (or console logging fallbacks)
+// Active reset codes memory map
+const resetCodes = new Map();
+
+// POST /api/auth/forgot-password - Generate password reset 6-digit code
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -257,29 +260,40 @@ router.post('/forgot-password', async (req, res) => {
     const user = getUserByEmail(email);
     if (!user) {
       // Return 200 standard message for privacy protection against user enumeration
-      logSecurityEvent('PASSWORD_RESET_REQUEST_UNREGISTERED', email, ip, 'Reset requested for non-existing email');
+      logSecurityEvent('PASSWORD_RESET_REQUEST_UNREGISTERED', email, ip, 'Reset code requested for non-existing email');
       return res.json({
         success: true,
-        message: 'Se o e-mail informado estiver cadastrado, as instruções de redefinição foram enviadas.'
+        message: 'Se o e-mail informado estiver cadastrado, o código de recuperação foi enviado.'
       });
     }
 
-    // Generate token expirable in 15 minutes for security
-    const token = jwt.sign(
-      { id: user.id, email: user.email, purpose: 'reset' },
-      JWT_SECRET,
-      { expiresIn: '15m' }
-    );
+    // Generate random 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
-    const resetLink = `${origin}/reset-password?token=${token}`;
+    // Store in memory map for 15 minutes
+    resetCodes.set(email.toLowerCase().trim(), {
+      code,
+      expiresAt: Date.now() + 15 * 60 * 1000,
+      userId: user.id
+    });
 
-    await sendResetPasswordEmail(user.email, user.name, resetLink);
-    logSecurityEvent('PASSWORD_RESET_REQUEST_SUCCESS', email, ip, 'Reset link sent successfully');
+    // Send the email with the code!
+    try {
+      await sendResetPasswordEmail(user.email, user.name, code);
+      logSecurityEvent('PASSWORD_RESET_REQUEST_SUCCESS', email, ip, `Reset code ${code} generated and sent`);
+    } catch (mailErr) {
+      console.warn('⚠️ [SMTP ERROR] Failed to send email, falling back to console logging:', mailErr.message);
+      console.log('========================================================');
+      console.log('📬 [EMAIL FALLBACK] SMTP TRANSMISSION FAILED');
+      console.log(`To: ${user.email}`);
+      console.log(`Reset Code: ${code}`);
+      console.log('========================================================');
+      logSecurityEvent('PASSWORD_RESET_REQUEST_SMTP_FALLBACK', email, ip, `SMTP failed (${mailErr.message}), fallback code logged: ${code}`);
+    }
 
     res.json({
       success: true,
-      message: 'Se o e-mail informado estiver cadastrado, as instruções de redefinição foram enviadas.'
+      message: 'Se o e-mail informado estiver cadastrado, o código de recuperação foi enviado.'
     });
   } catch (err) {
     console.error('[AuthRoute] Forgot password error:', err);
@@ -288,13 +302,13 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// POST /api/auth/reset-password - Verify token and update user password safely
+// POST /api/auth/reset-password - Verify 6-digit code and update user password safely
 router.post('/reset-password', (req, res) => {
-  const { token, password } = req.body;
+  const { email, code, password } = req.body;
   const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-  if (!token || !password) {
-    return res.status(400).json({ error: 'Token e nova senha são obrigatórios.' });
+  if (!email || !code || !password) {
+    return res.status(400).json({ error: 'E-mail, código e nova senha são obrigatórios.' });
   }
 
   // Validate password complexity
@@ -305,16 +319,26 @@ router.post('/reset-password', (req, res) => {
   }
 
   try {
-    // Verify recovery token
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.purpose !== 'reset') {
-      logSecurityEvent('PASSWORD_RESET_FAILED_INVALID_TOKEN', decoded.email, ip, 'Invalid token purpose');
-      return res.status(400).json({ error: 'Token inválido ou expirado.' });
+    const activeReset = resetCodes.get(email.toLowerCase().trim());
+    if (!activeReset) {
+      logSecurityEvent('PASSWORD_RESET_FAILED_NO_CODE', email, ip, 'No active reset code found');
+      return res.status(400).json({ error: 'Nenhuma solicitação de recuperação ativa para este e-mail.' });
     }
 
-    const user = getUserById(decoded.id);
+    if (Date.now() > activeReset.expiresAt) {
+      resetCodes.delete(email.toLowerCase().trim());
+      logSecurityEvent('PASSWORD_RESET_FAILED_EXPIRED', email, ip, 'Reset code expired');
+      return res.status(400).json({ error: 'O código de recuperação expirou. Solicite um novo código.' });
+    }
+
+    if (activeReset.code !== code.trim()) {
+      logSecurityEvent('PASSWORD_RESET_FAILED_WRONG_CODE', email, ip, `Invalid code entered: ${code}`);
+      return res.status(400).json({ error: 'Código de recuperação inválido.' });
+    }
+
+    const user = getUserById(activeReset.userId);
     if (!user) {
-      logSecurityEvent('PASSWORD_RESET_FAILED_USER_NOT_FOUND', decoded.email, ip, 'User not found for reset token');
+      logSecurityEvent('PASSWORD_RESET_FAILED_USER_NOT_FOUND', email, ip, 'User not found');
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
 
@@ -323,7 +347,10 @@ router.post('/reset-password', (req, res) => {
     const passwordHash = bcrypt.hashSync(password, salt);
 
     updateUserPassword(user.id, passwordHash);
-    logSecurityEvent('PASSWORD_RESET_SUCCESS', user.email, ip, 'Password updated successfully via reset token');
+    
+    // Clear code from memory
+    resetCodes.delete(email.toLowerCase().trim());
+    logSecurityEvent('PASSWORD_RESET_SUCCESS', user.email, ip, 'Password updated successfully via verification code');
 
     res.json({
       success: true,
@@ -331,8 +358,8 @@ router.post('/reset-password', (req, res) => {
     });
   } catch (err) {
     console.error('[AuthRoute] Reset password error:', err);
-    logSecurityEvent('PASSWORD_RESET_FAILED_EXPIRED_OR_ERR', '', ip, err.message);
-    res.status(400).json({ error: 'Token de recuperação inválido, expirado ou corrompido.' });
+    logSecurityEvent('PASSWORD_RESET_FAILED_ERROR', email, ip, err.message);
+    res.status(500).json({ error: 'Erro ao redefinir senha. Tente novamente.' });
   }
 });
 

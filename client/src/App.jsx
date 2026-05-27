@@ -292,7 +292,6 @@ export default function App() {
         {/* Public auth screens */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Public client proposal approval view */}
         <Route path="/proposal/:id" element={<ProposalView />} />

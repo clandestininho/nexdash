@@ -122,9 +122,10 @@ export default function Register() {
     }
   };
 
-  // Helper alert message if social login is clicked
+  // Helper to trigger backend social OAuth redirection
   const handleSocialClick = (platform) => {
-    setError(`O cadastro via ${platform} está habilitado apenas para integrações corporativas ativas. Crie sua conta preenchendo os dados abaixo.`);
+    setError('');
+    window.location.href = `/api/auth/${platform.toLowerCase()}`;
   };
 
   return (
@@ -267,7 +268,7 @@ export default function Register() {
           )}
 
           {/* Social signup block (decorative) */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Button 
               type="button" 
               variant="outline" 
@@ -275,14 +276,6 @@ export default function Register() {
               onClick={() => handleSocialClick('Google')}
             >
               <GoogleIcon className="size-4 text-white" />
-            </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
-              onClick={() => handleSocialClick('Apple')}
-            >
-              <AppleIcon className="size-4 text-white" />
             </Button>
             <Button 
               type="button" 
