@@ -24,6 +24,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'millalipe-crm-super-secret-key-saa
 // ─── Express App ─────────────────────────────────────────────────────────────
 
 const app = express();
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 
 // ─── Socket.io ───────────────────────────────────────────────────────────────

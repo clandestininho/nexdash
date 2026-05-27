@@ -375,7 +375,11 @@ router.get('/:provider(google|github|apple)', (req, res) => {
       ? (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET)
       : false;
 
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+  let origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+  // Force HTTPS for production domain in VPS to avoid redirect_uri_mismatch on reverse proxies
+  if (origin.includes('legattoorg.com.br') && !origin.startsWith('https://')) {
+    origin = origin.replace('http://', 'https://');
+  }
   
   if (hasCreds) {
     logSecurityEvent('OAUTH_REDIRECT_PRODUCTION', '', ip, `Redirecting to production ${provider} OAuth`);
