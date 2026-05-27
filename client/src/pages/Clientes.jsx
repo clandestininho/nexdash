@@ -23,7 +23,8 @@ import {
   Edit3,
   Trash2,
   Mail,
-  Phone
+  Phone,
+  Settings
 } from 'lucide-react';
 import { STAGES, STAGE_ORDER, getStageLabel, getStageColor } from '../lib/stages';
 import { useSocket } from '../hooks/useSocket';
@@ -50,6 +51,14 @@ export default function Clientes() {
   const [isCadastrarModalOpen, setIsCadastrarModalOpen] = useState(false);
   
   // Form States
+  const [formPais, setFormPais] = useState('Brasil');
+  const [isLinkConfigModalOpen, setIsLinkConfigModalOpen] = useState(false);
+  const [leadConfig, setLeadConfig] = useState({
+    doc: true,
+    cep: true,
+    project_interest: true,
+    notes: true
+  });
   const [formPipeline, setFormPipeline] = useState('novo');
   const [formNome, setFormNome] = useState('');
   const [formEmail, setFormEmail] = useState('');
@@ -130,8 +139,25 @@ export default function Clientes() {
     fetchContacts();
   }, [fetchContacts]);
 
+  // Load lead customizer fields configuration from API settings table
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        const data = await res.json();
+        if (data && data.lead_custom_fields) {
+          setLeadConfig(JSON.parse(data.lead_custom_fields));
+        }
+      } catch (err) {
+        console.error('Erro ao carregar configurações do link:', err);
+      }
+    };
+    loadConfig();
+  }, []);
+
   // Automatic CEP (Postal Code) lookup side-effect
   useEffect(() => {
+    if (formPais !== 'Brasil') return;
     const cleaned = formCep.replace(/\D/g, '');
     if (cleaned.length === 8) {
       const lookupCep = async () => {
@@ -208,6 +234,22 @@ export default function Clientes() {
     const link = `${window.location.origin}/register-lead?user=${userId}`;
     navigator.clipboard.writeText(link);
     alert('Link de auto-cadastro copiado com sucesso! Você pode enviá-lo para seus novos leads.');
+  };
+
+  const handleSaveLeadConfig = async (config) => {
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_custom_fields: JSON.stringify(config)
+        })
+      });
+      alert('Configuração do link de cadastro salva com sucesso!');
+    } catch (err) {
+      console.error('Erro ao salvar configuração do link:', err);
+      alert('Erro ao salvar configuração.');
+    }
   };
 
   // Real CNPJ API Lookup connecting to public Receita Federal databases
@@ -287,7 +329,8 @@ export default function Clientes() {
       cidade: formCidade,
       estado: formEstado,
       project_interest: formInteresse,
-      profile_pic: existing?.profile_pic || null
+      profile_pic: existing?.profile_pic || null,
+      pais: formPais || 'Brasil'
     };
 
     // Save to local storage
@@ -345,6 +388,7 @@ export default function Clientes() {
     setFormIssRetido(false);
     setFormObs('');
     setFormRenewalDate(new Date().toISOString().split('T')[0]);
+    setFormPais('Brasil');
   };
 
   // Edit action
@@ -368,6 +412,7 @@ export default function Clientes() {
     setFormTags(contact.tags ? contact.tags.join(', ') : '');
     setFormIssRetido(contact.iss_retido || false);
     setFormObs(contact.last_message || '');
+    setFormPais(contact.pais || 'Brasil');
     
     setIsCadastrarModalOpen(true);
   };
@@ -549,6 +594,16 @@ export default function Clientes() {
           >
             <Copy className="h-3.5 w-3.5" />
             <span>Link de Cadastro</span>
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsLinkConfigModalOpen(true)} 
+            className="gap-1.5 text-xs bg-[#121212] border-[#1f1f1f] text-zinc-400 hover:text-white font-body"
+          >
+            <Settings className="h-3.5 w-3.5 text-[#e13a40]" />
+            <span>Configurar Link</span>
           </Button>
 
           <button
@@ -903,51 +958,82 @@ export default function Clientes() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {/* País */}
+                <div className="space-y-1 col-span-2 sm:col-span-1">
+                  <label className="text-xs text-zinc-350 font-bold uppercase">País</label>
+                  <select
+                    value={formPais}
+                    onChange={(e) => {
+                      const selectedPais = e.target.value;
+                      setFormPais(selectedPais);
+                      setFormDoc('');
+                      setFormCep('');
+                    }}
+                    className="w-full bg-[#1a1a1a] text-white text-sm rounded-lg border border-[#1f1f1f] focus:ring-1 focus:ring-[#e13a40]/50 p-2.5 outline-none font-semibold h-10 cursor-pointer"
+                  >
+                    <option value="Brasil">🇧🇷 Brasil</option>
+                    <option value="Portugal">🇵🇹 Portugal</option>
+                    <option value="Outro">🌐 Outro</option>
+                  </select>
+                </div>
+
                 {/* Telephone */}
                 <div className="space-y-1 col-span-2 sm:col-span-1">
                   <label className="text-xs text-zinc-350 font-bold uppercase">WhatsApp / Celular</label>
                   <div className="flex gap-2">
-                    <span className="bg-[#1a1a1a] border border-[#1f1f1f] text-sm text-zinc-200 p-2.5 rounded-lg select-none font-bold">🇧🇷 +55</span>
+                    <span className="bg-[#1a1a1a] border border-[#1f1f1f] text-sm text-zinc-200 p-2.5 rounded-lg select-none font-bold">
+                      {formPais === 'Brasil' ? '🇧🇷 +55' : formPais === 'Portugal' ? '🇵🇹 +351' : '🌐 +'}
+                    </span>
                     <Input 
-                      placeholder="(81) 99887-7665"
+                      placeholder={formPais === 'Brasil' ? '(81) 99887-7665' : formPais === 'Portugal' ? '912 345 678' : 'Número completo'}
                       value={formTelefone}
                       onChange={(e) => setFormTelefone(e.target.value)}
                       className="bg-[#1a1a1a] border-[#1f1f1f] text-white text-sm py-2 flex-1 font-mono"
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* CNPJ / CPF with public database check button */}
-                <div className="space-y-1 col-span-2 sm:col-span-1">
-                  <label className="text-xs text-zinc-350 font-bold uppercase">CPF ou CNPJ</label>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Document ID */}
+                <div className="space-y-1 col-span-2">
+                  <label className="text-xs text-zinc-350 font-bold uppercase">
+                    {formPais === 'Brasil' ? 'CPF ou CNPJ' : formPais === 'Portugal' ? 'NIF (Contribuinte)' : 'Documento (VAT / Tax ID)'}
+                  </label>
                   <div className="flex gap-1.5">
                     <Input 
-                      placeholder="00.000.000/0001-00"
+                      placeholder={formPais === 'Brasil' ? '00.000.000/0001-00' : formPais === 'Portugal' ? '123 456 789' : 'ID do Documento'}
                       value={formDoc}
                       onChange={(e) => setFormDoc(e.target.value)}
                       className="bg-[#1a1a1a] border-[#1f1f1f] text-white text-sm py-2 flex-1 font-mono"
                     />
-                    <button
-                      type="button"
-                      onClick={handleCnpjLookup}
-                      disabled={isQueryingCnpj}
-                      className="px-3 rounded-lg border border-[#1f1f1f] bg-[#1a1a1a] hover:bg-[#25252b] text-xs font-bold text-zinc-200 hover:text-white transition-all flex items-center gap-1 active:scale-95"
-                    >
-                      {isQueryingCnpj ? 'Consultando...' : 'Buscar Dados'}
-                    </button>
+                    {formPais === 'Brasil' && (
+                      <button
+                        type="button"
+                        onClick={handleCnpjLookup}
+                        disabled={isQueryingCnpj}
+                        className="px-3 rounded-lg border border-[#1f1f1f] bg-[#1a1a1a] hover:bg-[#25252b] text-xs font-bold text-zinc-200 hover:text-white transition-all flex items-center gap-1 active:scale-95"
+                      >
+                        {isQueryingCnpj ? 'Consultando...' : 'Buscar Dados'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Address sub-grid fields */}
               <div className="p-3 rounded-xl bg-[#1a1a1a]/30 border border-[#1f1f1f] space-y-3.5">
-                <span className="text-xs text-[#e13a40] font-bold uppercase tracking-wider block">Endereço Comercial</span>
+                <span className="text-xs text-[#e13a40] font-bold uppercase tracking-wider block">
+                  {formPais === 'Brasil' ? 'Endereço Comercial' : formPais === 'Portugal' ? 'Morada Comercial' : 'Morada / Endereço'}
+                </span>
                 
                 <div className="grid grid-cols-4 gap-3">
                   <div className="space-y-1 col-span-2">
-                    <label className="text-xs text-zinc-350 font-bold uppercase">Endereço / Logradouro</label>
+                    <label className="text-xs text-zinc-350 font-bold uppercase">
+                      {formPais === 'Brasil' ? 'Endereço / Logradouro' : formPais === 'Portugal' ? 'Morada / Rua' : 'Morada'}
+                    </label>
                     <Input 
-                      placeholder="Avenida Paulista"
+                      placeholder={formPais === 'Brasil' ? 'Avenida Paulista' : formPais === 'Portugal' ? 'Rua das Flores, nº 10' : 'Endereço'}
                       value={formEndereço}
                       onChange={(e) => setFormEndereço(e.target.value)}
                       className="bg-[#1a1a1a] border-[#1f1f1f] text-white text-xs py-2"
@@ -965,9 +1051,11 @@ export default function Clientes() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-350 font-bold uppercase">CEP</label>
+                    <label className="text-xs text-zinc-350 font-bold uppercase">
+                      {formPais === 'Brasil' ? 'CEP' : 'Código Postal'}
+                    </label>
                     <Input 
-                      placeholder="01311-100"
+                      placeholder={formPais === 'Brasil' ? '01311-100' : formPais === 'Portugal' ? '1000-001' : 'Postal / ZIP'}
                       value={formCep}
                       onChange={(e) => setFormCep(e.target.value)}
                       className="bg-[#1a1a1a] border-[#1f1f1f] text-white text-xs py-2 font-mono"
@@ -987,9 +1075,11 @@ export default function Clientes() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-350 font-bold uppercase">Bairro</label>
+                    <label className="text-xs text-zinc-350 font-bold uppercase">
+                      {formPais === 'Brasil' ? 'Bairro' : formPais === 'Portugal' ? 'Localidade / Freguesia' : 'Bairro / Região'}
+                    </label>
                     <Input 
-                      placeholder="Centro"
+                      placeholder={formPais === 'Brasil' ? 'Centro' : formPais === 'Portugal' ? 'Chiado' : 'Bairro'}
                       value={formBairro}
                       onChange={(e) => setFormBairro(e.target.value)}
                       className="bg-[#1a1a1a] border-[#1f1f1f] text-white text-xs py-2"
@@ -997,9 +1087,11 @@ export default function Clientes() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-350 font-bold uppercase">Cidade/UF</label>
+                    <label className="text-xs text-zinc-350 font-bold uppercase">
+                      {formPais === 'Brasil' ? 'Cidade/UF' : formPais === 'Portugal' ? 'Concelho' : 'Cidade'}
+                    </label>
                     <Input 
-                      placeholder="Recife - PE"
+                      placeholder={formPais === 'Brasil' ? 'Recife - PE' : 'Cidade'}
                       value={`${formCidade}${formEstado ? ' - ' + formEstado : ''}`}
                       onChange={(e) => {
                         const split = e.target.value.split('-');
@@ -1095,6 +1187,105 @@ export default function Clientes() {
                 className="py-2.5 px-6 rounded-xl bg-[#e13a40] hover:bg-[#c52f34] text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition-all font-body"
               >
                 <span>Salvar Contato</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ──── MODAL CONFIGURAÇÃO DO LINK DE CADASTRO ──── */}
+      {isLinkConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-body animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col">
+            
+            <button 
+              onClick={() => setIsLinkConfigModalOpen(false)}
+              className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="pb-4 border-b border-[#1f1f1f]">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Settings className="h-4 w-4 text-[#e13a40]" />
+                Campos do Link de Cadastro
+              </h2>
+              <p className="text-[11px] text-zinc-500 mt-1">Marque quais informações você deseja coletar dos seus clientes no formulário público.</p>
+            </div>
+
+            <div className="py-5 space-y-4 text-xs">
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-[#1a1a1a]/55 border border-[#1f1f1f] cursor-pointer hover:bg-zinc-900 transition-colors">
+                <input 
+                  type="checkbox"
+                  checked={leadConfig.doc}
+                  onChange={(e) => setLeadConfig({ ...leadConfig, doc: e.target.checked })}
+                  className="h-4 w-4 text-[#e13a40] rounded border-[#1f1f1f] focus:ring-[#e13a40]/30 outline-none cursor-pointer"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-white">Coletar CPF/CNPJ ou NIF</span>
+                  <span className="text-[10px] text-zinc-400">Exibe o campo de identificação fiscal correspondente ao país</span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-[#1a1a1a]/55 border border-[#1f1f1f] cursor-pointer hover:bg-zinc-900 transition-colors">
+                <input 
+                  type="checkbox"
+                  checked={leadConfig.cep}
+                  onChange={(e) => setLeadConfig({ ...leadConfig, cep: e.target.checked })}
+                  className="h-4 w-4 text-[#e13a40] rounded border-[#1f1f1f] focus:ring-[#e13a40]/30 outline-none cursor-pointer"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-white">Coletar Endereço Completo</span>
+                  <span className="text-[10px] text-zinc-400">Exibe CEP/Código Postal, Rua, Bairro, Cidade e Estado</span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-[#1a1a1a]/55 border border-[#1f1f1f] cursor-pointer hover:bg-zinc-900 transition-colors">
+                <input 
+                  type="checkbox"
+                  checked={leadConfig.project_interest}
+                  onChange={(e) => setLeadConfig({ ...leadConfig, project_interest: e.target.checked })}
+                  className="h-4 w-4 text-[#e13a40] rounded border-[#1f1f1f] focus:ring-[#e13a40]/30 outline-none cursor-pointer"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-white">Coletar Projeto / Serviço de Interesse</span>
+                  <span className="text-[10px] text-zinc-400">Exibe campo de interesse comercial</span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-[#1a1a1a]/55 border border-[#1f1f1f] cursor-pointer hover:bg-zinc-900 transition-colors">
+                <input 
+                  type="checkbox"
+                  checked={leadConfig.notes}
+                  onChange={(e) => setLeadConfig({ ...leadConfig, notes: e.target.checked })}
+                  className="h-4 w-4 text-[#e13a40] rounded border-[#1f1f1f] focus:ring-[#e13a40]/30 outline-none cursor-pointer"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-white">Coletar Observações Adicionais</span>
+                  <span className="text-[10px] text-zinc-400">Exibe caixa de texto multilinha para comentários</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="pt-4 border-t border-[#1f1f1f] flex justify-end gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => setIsLinkConfigModalOpen(false)}
+                className="py-2 px-4 rounded-lg bg-zinc-900 border border-[#1f1f1f] text-zinc-400 hover:text-white font-semibold transition-all h-9"
+              >
+                Cancelar
+              </button>
+              
+              <button
+                type="button"
+                onClick={async () => {
+                  await handleSaveLeadConfig(leadConfig);
+                  setIsLinkConfigModalOpen(false);
+                }}
+                className="py-2 px-5 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold transition-all shadow-md h-9"
+              >
+                Salvar Configurações
               </button>
             </div>
 

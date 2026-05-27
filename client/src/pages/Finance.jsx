@@ -119,6 +119,188 @@ export default function Finance() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
 
+  // Excel/CSV Importer States
+  const [importedTxs, setImportedTxs] = useState([]);
+  const [importError, setImportError] = useState('');
+  const [importSuccess, setImportSuccess] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+
+  const downloadTemplate = () => {
+    const csvContent = "Data,Tipo,Entidade,Descrição,Categoria,Valor,Situação\n" +
+      "25/05/2026,Receita,Marina Sousa,Desenvolvimento Site Institucional,Serviços,\"1.500,00\",Liquidado\n" +
+      "26/05/2026,Despesa,Amazon Web Services,Servidor Nuvem Hospedagem,Infraestrutura,\"450,00\",Pago\n" +
+      "27/05/2026,Receita,Carlos Silva,Consultoria SEO,Consultoria,\"950,00\",Pendente\n" +
+      "28/05/2026,Despesa,Figma,Assinatura Team Figma,Ferramentas e Software,\"89,90\",Pendente\n";
+    
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "modelo_importacao_financeira.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCSVUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    parseAndMapFile(file);
+  };
+  
+  const parseAndMapFile = (file) => {
+    setImportError('');
+    setImportSuccess('');
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target.result;
+        if (!text) {
+          setImportError('O arquivo está vazio.');
+          return;
+        }
+        
+        const lines = text.split(/\r?\n/);
+        if (lines.length < 2) {
+          setImportError('O arquivo precisa ter um cabeçalho e pelo menos uma linha de dados.');
+          return;
+        }
+        
+        const header = lines[0];
+        const commaCount = (header.match(/,/g) || []).length;
+        const semiCount = (header.match(/;/g) || []).length;
+        const delimiter = semiCount > commaCount ? ';' : ',';
+        
+        const parsedRows = [];
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          const row = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let j = 0; j < line.length; j++) {
+            const char = line[j];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === delimiter && !inQuotes) {
+              row.push(current.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          row.push(current.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+          
+          if (row.length >= 6) {
+            parsedRows.push(row);
+          }
+        }
+        
+        if (parsedRows.length === 0) {
+          setImportError('Nenhuma linha de transação válida foi encontrada no CSV.');
+          return;
+        }
+        
+        const mapped = parsedRows.map((row, idx) => {
+          const dateRaw = row[0] || '';
+          const typeRaw = (row[1] || '').toLowerCase();
+          const entityRaw = row[2] || 'Importado';
+          const descRaw = row[3] || 'Lançamento Importado';
+          const catRaw = row[4] || 'Outros';
+          const valRaw = row[5] || '0';
+          const statusRaw = (row[6] || '').toLowerCase();
+          
+          let formattedDate = '';
+          if (dateRaw.includes('/')) {
+            const parts = dateRaw.split('/');
+            if (parts.length === 3) {
+              const day = parts[0].padStart(2, '0');
+              const month = parts[1].padStart(2, '0');
+              const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+              formattedDate = `${year}-${month}-${day}`;
+            }
+          } else if (dateRaw.includes('-')) {
+            formattedDate = dateRaw;
+          } else {
+            formattedDate = new Date().toISOString().split('T')[0];
+          }
+          
+          let type = 'income';
+          if (
+            typeRaw.includes('desp') || 
+            typeRaw.includes('saida') || 
+            typeRaw.includes('saída') || 
+            typeRaw.includes('exp') || 
+            typeRaw.includes('pagar') ||
+            typeRaw.includes('expense')
+          ) {
+            type = 'expense';
+          }
+          
+          let cleanVal = valRaw.replace(/[R$\s]/g, '');
+          if (cleanVal.includes(',') && cleanVal.includes('.')) {
+            cleanVal = cleanVal.replace(/\./g, '').replace(',', '.');
+          } else if (cleanVal.includes(',')) {
+            cleanVal = cleanVal.replace(',', '.');
+          }
+          let amount = parseFloat(cleanVal);
+          if (isNaN(amount)) amount = 0;
+          
+          let status = type === 'expense' ? 'paid' : 'received';
+          if (
+            statusRaw.includes('pend') || 
+            statusRaw.includes('abert') || 
+            statusRaw.includes('dev') || 
+            statusRaw.includes('wait')
+          ) {
+            status = 'pending';
+          } else if (statusRaw.includes('pag') || statusRaw.includes('rec') || statusRaw.includes('liq')) {
+            status = type === 'expense' ? 'paid' : 'received';
+          }
+          
+          return {
+            id: `tx-imported-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
+            type,
+            client: entityRaw,
+            description: descRaw,
+            category: catRaw,
+            amount,
+            date: formattedDate,
+            status,
+            currency: 'BRL',
+            obs: 'Importado via planilha Excel/CSV'
+          };
+        });
+        
+        setImportedTxs(mapped);
+        setImportSuccess(`Sucesso! ${mapped.length} lançamentos processados. Revise-os na tabela de pré-visualização abaixo.`);
+      } catch (err) {
+        console.error(err);
+        setImportError('Erro ao processar o arquivo CSV. Por favor, verifique se o modelo está correto.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = () => {
+    if (importedTxs.length === 0) return;
+    const newTxsList = [...importedTxs, ...transactions];
+    saveTxs(newTxsList);
+    setImportedTxs([]);
+    setImportSuccess('');
+    setImportError('');
+    setActiveTab('visao-geral');
+  };
+  
+  const handleCancelImport = () => {
+    setImportedTxs([]);
+    setImportSuccess('');
+    setImportError('');
+  };
+
   useEffect(() => {
     const loadTxs = () => {
       const stored = localStorage.getItem('dgflow_transactions');
@@ -143,6 +325,7 @@ export default function Finance() {
   const saveTxs = (newTxs) => {
     setTransactions(newTxs);
     localStorage.setItem('dgflow_transactions', JSON.stringify(newTxs));
+    window.dispatchEvent(new CustomEvent('dgflow_transactions_updated'));
   };
 
   const handleAddVenda = (e) => {
@@ -344,7 +527,7 @@ export default function Finance() {
         </div>
       </div>
 
-      {/* Sub-Tabs Grid Selector - 10 tabs perfectly matching the deep-dive */}
+      {/* Sub-Tabs Grid Selector - 11 tabs perfectly matching the deep-dive */}
       <div className="flex items-center gap-1 border-b border-[#1f1f1f] overflow-x-auto pb-1.5 scrollbar-thin">
         {[
           { id: 'visao-geral', label: 'Visão Geral' },
@@ -357,6 +540,7 @@ export default function Finance() {
           { id: 'caixa', label: 'Caixa' },
           { id: 'notafiscal', label: 'Nota Fiscal' },
           { id: 'relatorios', label: 'Relatórios' },
+          { id: 'importar', label: 'Importar Planilha' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1068,6 +1252,193 @@ export default function Finance() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* 11. IMPORTAR LANÇAMENTOS */}
+      {activeTab === 'importar' && (
+        <div className="space-y-6 font-body">
+          <Card className="bg-[#121212] border-[#1f1f1f] text-white shadow-card">
+            <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-[#e13a40]/10 text-[#e13a40]">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a4 4 0 00-4-4H5a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2h-.5a4 4 0 00-4 4v2m0-10l-4-4m0 0L7 9m4-4v12" />
+                    </svg>
+                  </span>
+                  <span>Importador Financeiro Excel / CSV</span>
+                </CardTitle>
+                <CardDescription className="text-zinc-500 text-xs mt-1">
+                  Importe planilhas de lançamentos financeiros de forma massiva com mapeamento inteligente de receitas e despesas.
+                </CardDescription>
+              </div>
+
+              <button
+                onClick={downloadTemplate}
+                className="inline-flex items-center justify-center rounded-lg text-xs font-semibold border border-[#1f1f1f] bg-[#1a1a1a] text-zinc-300 hover:text-white px-3.5 py-2 gap-2 hover:bg-[#222] hover:scale-105 transition-all duration-300 shrink-0 cursor-pointer"
+              >
+                <svg className="h-4 w-4 text-[#e13a40]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Baixar Planilha Modelo</span>
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              
+              {/* Alert Error / Success */}
+              {importError && (
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400">
+                  <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {importSuccess && (
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 animate-fade-in">
+                  <Check className="h-4.5 w-4.5 shrink-0" />
+                  <span>{importSuccess}</span>
+                </div>
+              )}
+
+              {importedTxs.length === 0 ? (
+                /* Drag & Drop Area */
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) parseAndMapFile(file);
+                  }}
+                  className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300 ${
+                    isDragging 
+                      ? 'border-[#e13a40] bg-[#e13a40]/5 shadow-glow' 
+                      : 'border-[#1f1f1f] bg-[#0c0c0c] hover:border-zinc-700 hover:bg-[#111]'
+                  }`}
+                  onClick={() => document.getElementById('finance-csv-file-input').click()}
+                >
+                  <input
+                    type="file"
+                    id="finance-csv-file-input"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleCSVUpload}
+                  />
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-[#181818] flex items-center justify-center border border-[#222]">
+                      <svg className="h-6 w-6 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-white">Arraste seu arquivo CSV ou clique para fazer upload</p>
+                      <p className="text-[10px] text-zinc-500 mt-1">Suporta arquivos .CSV exportados do Excel (separados por vírgula ou ponto e vírgula)</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Interactive Preview Table */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-400">Pré-visualização dos Lançamentos ({importedTxs.length})</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCancelImport}
+                        className="px-3.5 py-1.5 rounded-lg border border-[#1f1f1f] bg-[#1a1a1a] text-zinc-400 hover:text-white hover:bg-[#222] text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        Limpar
+                      </button>
+                      <button
+                        onClick={handleConfirmImport}
+                        className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-[#16a34a] hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-black shadow-md shadow-emerald-950/20 hover:scale-102 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Confirmar Importação</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-xl border border-[#1f1f1f] bg-[#0c0c0c]/80">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-[#1f1f1f] text-zinc-500 bg-[#0a0a0a]/60 font-semibold uppercase text-[9px] tracking-wider font-body">
+                          <th className="p-3 pl-6">Data</th>
+                          <th className="p-3">Fluxo</th>
+                          <th className="p-3">Entidade</th>
+                          <th className="p-3">Descrição / Título</th>
+                          <th className="p-3">Categoria</th>
+                          <th className="p-3 text-right">Valor</th>
+                          <th className="p-3 pr-6 text-center">Faturamento</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importedTxs.map((tx) => (
+                          <tr key={tx.id} className="border-b border-[#1f1f1f]/30 hover:bg-[#1a1a1a]/30">
+                            <td className="p-3 pl-6 font-mono text-zinc-500">{tx.date}</td>
+                            <td className="p-3">
+                              <span className={`inline-flex items-center gap-1 font-semibold ${
+                                tx.type === 'income' ? 'text-emerald-500' : 'text-rose-500'
+                              }`}>
+                                {tx.type === 'income' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownLeft className="h-3 w-3" />}
+                                {tx.type === 'income' ? 'Entrada' : 'Saída'}
+                              </span>
+                            </td>
+                            <td className="p-3 font-semibold text-white">{tx.client}</td>
+                            <td className="p-3 text-zinc-400 font-body">{tx.description}</td>
+                            <td className="p-3">
+                              <span className="bg-[#1a1a1a] border border-[#1f1f1f] text-zinc-400 px-2 py-0.5 rounded text-[10px] font-body">
+                                {tx.category}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-bold text-white font-mono">
+                              R$ {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="p-3 pr-6 text-center">
+                              <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                tx.status === 'received' || tx.status === 'paid'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                              }`}>
+                                {tx.status === 'received' || tx.status === 'paid' ? 'Liquidado' : 'Pendente'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Instructions and Guidelines Card */}
+              <div className="p-4 rounded-xl border border-[#1f1f1f] bg-[#161616]/30 space-y-3 font-body">
+                <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                  <svg className="h-4 w-4 text-[#e13a40]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Instruções de Preenchimento da Planilha</span>
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-zinc-500 leading-relaxed font-body">
+                  <ul className="space-y-1.5 list-disc pl-4">
+                    <li><strong className="text-zinc-400">Data:</strong> Preencha no formato brasileiro <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-zinc-300 font-mono">DD/MM/AAAA</code> (ex: 27/05/2026).</li>
+                    <li><strong className="text-zinc-400">Tipo:</strong> Use <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-emerald-400 font-mono">Receita</code> (ou Entrada) e <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-rose-400 font-mono">Despesa</code> (ou Saída).</li>
+                    <li><strong className="text-zinc-400">Entidade:</strong> Nome do cliente (para Receitas) ou fornecedor (para Despesas).</li>
+                  </ul>
+                  <ul className="space-y-1.5 list-disc pl-4">
+                    <li><strong className="text-zinc-400">Descrição:</strong> Descrição resumida da venda ou do gasto (ex: Assinatura Mensal).</li>
+                    <li><strong className="text-zinc-400">Valor:</strong> Informe números decimais no formato brasileiro <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-zinc-300 font-mono">1.500,00</code> ou simples <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-zinc-300 font-mono">1500,00</code>.</li>
+                    <li><strong className="text-zinc-400">Situação:</strong> <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-zinc-300 font-mono">Liquidado</code> (Pago/Recebido) ou <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-zinc-300 font-mono">Pendente</code> (A pagar/receber).</li>
+                  </ul>
+                </div>
+              </div>
+
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* MODAL 2.1: NOVA VENDA RÁPIDA */}

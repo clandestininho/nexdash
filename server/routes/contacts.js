@@ -8,6 +8,7 @@ import {
   upsertContact,
   getMessages,
   clearChatHistory,
+  getSetting,
 } from '../db/database.js';
 import { VALID_STAGES } from '../ai/classifier.js';
 import { applyLabel } from '../whatsapp/labelManager.js';
@@ -44,6 +45,25 @@ export default function createContactsRouter(io) {
     } catch (error) {
       console.error(`[Route:Contacts] User ${userId}: Error getting contacts:`, error.message);
       res.status(500).json({ error: 'Falha ao buscar contatos.' });
+    }
+  });
+
+  // GET /api/contacts/public-info/:userId — Public endpoint to get white-label info and lead customizable fields
+  router.get('/public-info/:userId', (req, res) => {
+    try {
+      const targetUserId = req.params.userId || '1';
+      const companyName = getSetting(targetUserId, 'profile_empresa') || 'NEXDASH';
+      const companyLogo = getSetting(targetUserId, 'profile_avatar') || getSetting(targetUserId, 'onboarding_logo') || '';
+      const customFieldsStr = getSetting(targetUserId, 'lead_custom_fields') || '{"doc":true,"cep":true,"notes":true,"project_interest":true}';
+      
+      res.json({
+        companyName,
+        companyLogo,
+        customFields: JSON.parse(customFieldsStr)
+      });
+    } catch (error) {
+      console.error(`[Route:Contacts] Public Info Error:`, error.message);
+      res.status(500).json({ error: 'Falha ao buscar informações públicas.' });
     }
   });
 

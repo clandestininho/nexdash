@@ -201,6 +201,7 @@ export default function Proposals() {
   
   // Step 1: Dados do Cliente
   const [wizClientName, setWizClientName] = useState('');
+  const [wizClientPais, setWizClientPais] = useState('Brasil');
   const [wizProjectName, setWizProjectName] = useState('');
   const [wizClientCpfCnpj, setWizClientCpfCnpj] = useState('');
   const [wizClientRepresentative, setWizClientRepresentative] = useState('');
@@ -376,11 +377,13 @@ export default function Proposals() {
       
       '{{Nome do Cliente}}': wizClientName,
       '{{Endereço do Cliente}}': wizClientAddress || '[Endereço do Cliente]',
+      '{{Morada do Cliente}}': wizClientAddress || '[Morada do Cliente]',
       '{{Número do Endereço Cliente}}': wizClientNum || '',
       '{{Bairro do Cliente}}': wizClientBairro || '',
       '{{Cidade do Cliente}}': wizClientCity || '',
       '{{Estado do Cliente}}': wizClientState || '',
       '{{CPF/CNPJ do Cliente}}': wizClientCpfCnpj || '',
+      '{{NIF do Cliente}}': wizClientCpfCnpj || '',
       '{{Representante do Cliente}}': wizClientRepresentative || wizClientName,
 
       '{{Nome do Projeto}}': wizProjectName,
@@ -443,6 +446,7 @@ export default function Proposals() {
     setWizClientCity('');
     setWizClientState('');
     setWizClientCpfCnpj('');
+    setWizClientPais('Brasil');
     setWizClientRepresentative('');
     setWizClientEmail('');
     setWizClientPhone('');
@@ -1782,6 +1786,24 @@ export default function Proposals() {
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider select-none">Identificação da Proposta</h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 col-span-2">
+                      <label className="text-xs text-zinc-400 font-semibold">País do Cliente</label>
+                      <select
+                        value={wizClientPais}
+                        onChange={(e) => {
+                          setWizClientPais(e.target.value);
+                          setWizClientCpfCnpj('');
+                        }}
+                        className="w-full bg-[#101014] border border-zinc-800 text-white text-xs h-10 rounded-lg px-3 outline-none focus:ring-1 focus:ring-[#e13a40]/50 cursor-pointer"
+                      >
+                        <option value="Brasil">🇧🇷 Brasil</option>
+                        <option value="Portugal">🇵🇹 Portugal</option>
+                        <option value="Outro">🌐 Outro</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs text-zinc-400 font-semibold">Cliente *</label>
                       <Input
@@ -1807,11 +1829,13 @@ export default function Proposals() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">CNPJ / CPF do Cliente</label>
+                      <label className="text-xs text-zinc-400 font-semibold">
+                        {wizClientPais === 'Brasil' ? 'CNPJ / CPF do Cliente' : wizClientPais === 'Portugal' ? 'NIF (Nº de Contribuinte)' : 'Documento / VAT ID'}
+                      </label>
                       <Input
                         value={wizClientCpfCnpj}
                         onChange={(e) => setWizClientCpfCnpj(e.target.value)}
-                        placeholder="Ex: 12.345.678/0001-99"
+                        placeholder={wizClientPais === 'Brasil' ? 'Ex: 12.345.678/0001-99' : wizClientPais === 'Portugal' ? 'Ex: 123 456 789' : 'Documento fiscal'}
                         className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
                       />
                     </div>
@@ -1841,22 +1865,29 @@ export default function Proposals() {
 
                     <div className="space-y-1.5">
                       <label className="text-xs text-zinc-400 font-semibold">WhatsApp / Telefone</label>
-                      <Input
-                        value={wizClientPhone}
-                        onChange={(e) => setWizClientPhone(e.target.value)}
-                        placeholder="Ex: (11) 99999-9999"
-                        className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
-                      />
+                      <div className="flex gap-2">
+                        <span className="bg-[#101014] border border-zinc-800 text-xs text-zinc-350 px-3 rounded-lg select-none font-bold h-10 flex items-center">
+                          {wizClientPais === 'Brasil' ? '🇧🇷 +55' : wizClientPais === 'Portugal' ? '🇵🇹 +351' : '🌐 +'}
+                        </span>
+                        <Input
+                          value={wizClientPhone}
+                          onChange={(e) => setWizClientPhone(e.target.value)}
+                          placeholder={wizClientPais === 'Brasil' ? 'Ex: (11) 99999-9999' : wizClientPais === 'Portugal' ? '912 345 678' : 'Número de contato'}
+                          className="bg-[#101014] border-zinc-800 text-white text-xs h-10 flex-1"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-zinc-800/30">
                     <div className="md:col-span-2 space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">Endereço do Cliente</label>
+                      <label className="text-xs text-zinc-400 font-semibold">
+                        {wizClientPais === 'Brasil' ? 'Endereço do Cliente' : wizClientPais === 'Portugal' ? 'Morada / Rua' : 'Endereço'}
+                      </label>
                       <Input
                         value={wizClientAddress}
                         onChange={(e) => setWizClientAddress(e.target.value)}
-                        placeholder="Av. Paulista..."
+                        placeholder={wizClientPais === 'Brasil' ? 'Av. Paulista...' : wizClientPais === 'Portugal' ? 'Rua das Flores, nº 10' : 'Endereço'}
                         className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
                       />
                     </div>
@@ -1873,20 +1904,24 @@ export default function Proposals() {
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">Bairro</label>
+                      <label className="text-xs text-zinc-400 font-semibold">
+                        {wizClientPais === 'Brasil' ? 'Bairro' : wizClientPais === 'Portugal' ? 'Localidade / Freguesia' : 'Bairro'}
+                      </label>
                       <Input
                         value={wizClientBairro}
                         onChange={(e) => setWizClientBairro(e.target.value)}
-                        placeholder="Bela Vista"
+                        placeholder={wizClientPais === 'Brasil' ? 'Bela Vista' : wizClientPais === 'Portugal' ? 'Chiado' : 'Bairro'}
                         className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">Cidade</label>
+                      <label className="text-xs text-zinc-400 font-semibold">
+                        {wizClientPais === 'Brasil' ? 'Cidade' : wizClientPais === 'Portugal' ? 'Concelho' : 'Cidade'}
+                      </label>
                       <Input
                         value={wizClientCity}
                         onChange={(e) => setWizClientCity(e.target.value)}
-                        placeholder="São Paulo"
+                        placeholder="Cidade"
                         className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
                       />
                     </div>

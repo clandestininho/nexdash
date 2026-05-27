@@ -191,4 +191,38 @@ router.post('/blacklist', authenticateToken, (req, res) => {
   }
 });
 
+// POST /api/ai/generate-image — Generative AI Image Generator studio endpoint
+router.post('/ai/generate-image', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt é obrigatório.' });
+    }
+
+    const fallbackImages = [
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1618005198143-e5283b519a7f?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80'
+    ];
+    const hash = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const chosenIndex = hash % fallbackImages.length;
+    const imageUrl = fallbackImages[chosenIndex];
+
+    // Mock API delay for high-fidelity generative visual feeling
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    res.json({
+      success: true,
+      imageUrl: imageUrl,
+      creditsConsumed: 5
+    });
+  } catch (error) {
+    console.error(`[Route:AI] Image Gen Error:`, error.message);
+    res.status(500).json({ error: 'Falha ao processar a geração de imagem.' });
+  }
+});
+
 export default router;

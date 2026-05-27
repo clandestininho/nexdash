@@ -41,6 +41,28 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [msgInput, setMsgInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [showQuickMessages, setShowQuickMessages] = useState(false);
+  const [quickMessages, setQuickMessages] = useState(() => {
+    const stored = localStorage.getItem('dgflow_quick_messages');
+    if (stored) return JSON.parse(stored);
+    return [
+      { id: '1', title: '👋 Apresentação', content: 'Olá! Sou o assistente da nossa equipe. Como posso te ajudar hoje?' },
+      { id: '2', title: '📝 Link de Cadastro', content: 'Perfeito! Para prosseguirmos, por favor preencha seus dados de cadastro no link a seguir: {{LINK_CADASTRO}}' },
+      { id: '3', title: '💰 Proposta Comercial', content: 'Olá! Acabei de enviar sua proposta comercial para o seu e-mail. Vamos agendar uma breve chamada para alinhar os detalhes?' },
+      { id: '4', title: '💳 Dados Pix', content: 'Aqui estão os dados para pagamento via PIX: Chave CNPJ: 12.345.678/0001-99 (Nexdash CRM).' }
+    ];
+  });
+
+  const getDynamicLink = () => {
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const userId = user?.id || '1';
+    return `${window.location.origin}/register-lead?user=${userId}`;
+  };
+
+  const processMessagePlaceholder = (content) => {
+    return content.replace(/{{LINK_CADASTRO}}/g, getDynamicLink());
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [filterChip, setFilterChip] = useState('todas'); // 'todas' | 'ativas' | 'sem_atendente' etc.
   
@@ -785,8 +807,94 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
                   {/* Message Input Bottom form */}
                   <form 
                     onSubmit={handleSendMessage}
-                    className="p-4 border-t border-[#1f1f23] bg-[#0c0c0e] flex items-center gap-3"
+                    className="p-4 border-t border-[#1f1f23] bg-[#0c0c0e] flex items-center gap-3 relative"
                   >
+                    {/* Quick Messages Flyout Popover */}
+                    {showQuickMessages && (
+                      <div className="absolute bottom-16 left-4 right-4 bg-[#121212] border border-[#1f1f1f] rounded-2xl p-4 shadow-2xl z-50 max-h-60 overflow-y-auto space-y-3 animate-fade-in text-left">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#1f1f1f]">
+                          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">⚡ Mensagens Rápidas</span>
+                          <button 
+                            type="button"
+                            onClick={() => setShowQuickMessages(false)}
+                            className="text-zinc-500 hover:text-white text-xs font-bold"
+                          >
+                            Fechar
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {quickMessages.map((qm) => {
+                            const parsedContent = processMessagePlaceholder(qm.content);
+                            return (
+                              <div key={qm.id} className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex flex-col justify-between gap-2 text-xs">
+                                <div>
+                                  <span className="font-bold text-white block mb-0.5">{qm.title}</span>
+                                  <p className="text-zinc-400 text-[10px] line-clamp-2">{parsedContent}</p>
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMsgInput(parsedContent);
+                                      setShowQuickMessages(false);
+                                    }}
+                                    className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-[10px] font-semibold rounded text-zinc-200"
+                                  >
+                                    Usar no Campo
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setShowQuickMessages(false);
+                                      setIsSending(true);
+                                      try {
+                                        await apiFetch('/api/whatsapp/send-message', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            jid: selectedContact.id,
+                                            message: parsedContent
+                                          })
+                                        });
+                                        setChatMessages(prev => [
+                                          ...prev,
+                                          {
+                                            id: 'msg-' + Date.now(),
+                                            contact_id: selectedContact.id,
+                                            content: parsedContent,
+                                            from_me: 1,
+                                            timestamp: new Date().toISOString()
+                                          }
+                                        ]);
+                                      } catch (err) {
+                                        console.error('Erro ao enviar direto:', err);
+                                      } finally {
+                                        setIsSending(false);
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-[#e13a40] hover:bg-[#c52f34] text-[10px] font-bold rounded text-white"
+                                  >
+                                    Enviar Direto
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickMessages(!showQuickMessages)}
+                      className={cn(
+                        "h-10 w-10 rounded-xl flex items-center justify-center border text-zinc-400 hover:text-white transition-all shadow-md active:scale-95 flex-shrink-0 bg-zinc-900 border-zinc-800"
+                      )}
+                      title="Mensagens Rápidas"
+                    >
+                      <Zap className="h-4 w-4 text-amber-500" />
+                    </button>
+
                     <input
                       type="text"
                       value={msgInput}

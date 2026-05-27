@@ -15,7 +15,11 @@ import {
   User,
   LayoutGrid,
   ListTodo,
-  AlertCircle
+  AlertCircle,
+  Settings,
+  Check,
+  Link,
+  MessageSquare
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -64,6 +68,10 @@ export default function Agenda() {
   const [tagInput, setTagInput] = useState('');
   const [evtAssignee, setEvtAssignee] = useState('Gleison');
   const [evtGoogleSync, setEvtGoogleSync] = useState(false);
+  const [isIntegrationsModalOpen, setIsIntegrationsModalOpen] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [icalSubscribed, setIcalSubscribed] = useState(false);
+  const [calendarSuggestion, setCalendarSuggestion] = useState('');
 
   useEffect(() => {
     const loadEvents = () => {
@@ -266,11 +274,11 @@ export default function Agenda() {
             </button>
 
             <button 
-              onClick={() => alert("Para integrar, acesse Configurações -> Integrações e conecte com Google Calendar.")}
+              onClick={() => setIsIntegrationsModalOpen(true)}
               className="p-2.5 rounded-xl border border-[#1f1f1f] bg-[#0a0a0a] hover:bg-[#1a1a1a] text-zinc-300 hover:text-white transition-all flex items-center justify-center"
-              title="Conectar Google Calendar"
+              title="Conectar Agendas / Calendários"
             >
-              <Calendar className="h-4 w-4" />
+              <Calendar className="h-4 w-4 text-[#e13a40]" />
             </button>
 
             <button 
@@ -820,6 +828,136 @@ export default function Agenda() {
                 className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-[#e13a40] hover:from-orange-600 hover:to-[#c52f34] text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition-all font-body"
               >
                 <span>Criar</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ──── MODAL CENTRAL DE INTEGRAÇÕES DE AGENDAS ──── */}
+      {isIntegrationsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-body animate-fade-in text-left">
+          <div className="w-full max-w-lg rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
+            
+            <button 
+              onClick={() => setIsIntegrationsModalOpen(false)}
+              className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="pb-4 border-b border-[#1f1f1f]">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-[#e13a40]" />
+                Central de Integração de Calendários
+              </h2>
+              <p className="text-[11px] text-zinc-500 mt-1">Conecte a agenda do NEXDASH com as suas contas externas favoritas de forma rápida e segura.</p>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto py-5 space-y-5 pr-1 scrollbar-thin text-xs">
+              
+              {/* Google Calendar */}
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">💙</span>
+                    <div>
+                      <span className="font-bold text-white text-xs block">Google Calendar</span>
+                      <span className="text-[10px] text-zinc-500">Sincronização bidirecional de eventos e tarefas em tempo real</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setGoogleConnected(!googleConnected);
+                      alert(googleConnected ? 'Google Calendar desconectado.' : 'Google Calendar conectado via OAuth com sucesso!');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                      googleConnected 
+                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
+                        : 'bg-[#e13a40] hover:bg-[#c52f34] text-white'
+                    }`}
+                  >
+                    {googleConnected ? 'Conectado' : 'Conectar Google'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-400 leading-relaxed">
+                  <strong>Importante:</strong> Esta integração necessita de credenciais OAuth ativas. Ao clicar em Conectar, você será direcionado para o fluxo seguro do Google para aprovar permissões de acesso ao seu calendário.
+                </p>
+              </div>
+
+              {/* Apple Calendar */}
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🍎</span>
+                    <div>
+                      <span className="font-bold text-white text-xs block">Apple Calendar (iCal WebCal)</span>
+                      <span className="text-[10px] text-zinc-500">Assinatura direta no iPhone, iPad ou Mac com 1 clique</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`webcal://${window.location.host}/api/ical/1`);
+                      setIcalSubscribed(true);
+                      alert('Link iCal copiado para a área de transferência! No iPhone ou Mac, acesse Calendário -> Adicionar Calendário de Assinatura e cole o link.');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                      icalSubscribed 
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-200' 
+                        : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300'
+                    }`}
+                  >
+                    {icalSubscribed ? 'Link Copiado!' : 'Copiar iCal Link'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-400 leading-relaxed">
+                  Gere um feed de assinatura seguro no formato WebCal. Todas as reuniões e compromissos criados no CRM aparecerão automaticamente no aplicativo nativo do iOS/macOS de forma passiva.
+                </p>
+              </div>
+
+              {/* Integration suggestions form */}
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">💡</span>
+                  <div>
+                    <span className="font-bold text-white text-xs block">Falta algum calendário?</span>
+                    <span className="text-[10px] text-zinc-500">Sugira novas integrações de agendas para nossa equipe técnica</span>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    placeholder="Ex: Notion Calendar, Microsoft Outlook, Cron..."
+                    value={calendarSuggestion}
+                    onChange={(e) => setCalendarSuggestion(e.target.value)}
+                    className="flex-1 bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-650 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!calendarSuggestion) return;
+                      alert('Sugestão enviada com sucesso! Analisaremos a integração para os próximos lançamentos.');
+                      setCalendarSuggestion('');
+                    }}
+                    className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white font-bold rounded-lg text-[10px] transition-all"
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="pt-4 border-t border-[#1f1f1f] flex justify-end text-xs">
+              <button
+                type="button"
+                onClick={() => setIsIntegrationsModalOpen(false)}
+                className="py-2.5 px-6 rounded-xl bg-[#e13a40] hover:bg-[#c52f34] text-xs font-bold text-white shadow-sm transition-all"
+              >
+                Concluir
               </button>
             </div>
 

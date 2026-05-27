@@ -7,6 +7,33 @@ export default function Header() {
   const [aiCredits, setAiCredits] = useState(150);
   const [goalAchieved, setGoalAchieved] = useState(0);
   const [goalTarget, setGoalTarget] = useState(10000);
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('theme', nextTheme);
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: nextTheme }));
+  };
+
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      setTheme(e.detail);
+    };
+    window.addEventListener('theme-changed', handleThemeChange);
+    return () => window.removeEventListener('theme-changed', handleThemeChange);
+  }, []);
+
+  useEffect(() => {
+    const storedCredits = localStorage.getItem('ai_credits');
+    if (storedCredits) setAiCredits(parseInt(storedCredits));
+
+    const handleCreditsUpdate = (e) => {
+      setAiCredits(e.detail);
+    };
+    window.addEventListener('credits-updated', handleCreditsUpdate);
+    return () => window.removeEventListener('credits-updated', handleCreditsUpdate);
+  }, []);
 
   useEffect(() => {
     try {
@@ -94,8 +121,12 @@ export default function Header() {
         </button>
 
         {/* Theme toggle */}
-        <button className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1a1a] transition-all">
-          <Moon className="h-4 w-4" />
+        <button 
+          onClick={toggleTheme}
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1a1a] transition-all"
+          title={theme === 'dark' ? "Mudar para Tema Claro" : "Mudar para Tema Escuro"}
+        >
+          {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4 text-amber-500" />}
         </button>
 
         {/* Profile Circle */}

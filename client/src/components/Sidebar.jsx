@@ -196,7 +196,7 @@ export default function Sidebar() {
       <div className="px-6 pt-5 pb-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
           <img src={logo} alt="NEXDASH Logo" className="h-6 w-6 object-contain drop-shadow-[0_0_10px_rgba(225,58,64,0.3)] animate-pulse-soft" />
-          <span className="font-extrabold text-lg text-white tracking-tight font-display">NEXDASH</span>
+          <span className="font-extrabold text-lg text-white tracking-tight font-sans">NEXDASH</span>
         </div>
         
         {/* Simple search placeholder icon */}
@@ -205,17 +205,6 @@ export default function Sidebar() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
         </button>
-      </div>
-
-      {/* Subscription top badge */}
-      <div className="px-4 mb-2 flex items-center justify-between text-[11px] text-zinc-500 bg-[#121212]/50 py-1 mx-4 rounded-full border border-[#1f1f1f] select-none">
-        <div className="flex items-center gap-1.5 px-2">
-          <Sparkles className="h-3 w-3 text-[#e13a40]" />
-          <span className="font-semibold text-zinc-300">{getPlanLabel()}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="px-1.5 py-0.5 rounded bg-[#1a1a1a] border border-[#1f1f1f] text-[9px] font-bold text-zinc-400">STATUS</span>
-        </div>
       </div>
 
       {/* Large Accent Venda Button */}
@@ -237,6 +226,7 @@ export default function Sidebar() {
           {renderLink('/dashboard', 'Dashboard', LayoutDashboard)}
           {renderLink('/', 'Clientes', Users)}
           {renderLink('/pipelines', 'Pipelines', GitFork)}
+          {renderLink('/ai/designer', 'Ferramentas', Sparkles)}
         </div>
 
         {/* Agentes IA Section */}
@@ -339,9 +329,9 @@ export default function Sidebar() {
         ) : (
           <button 
             onClick={() => window.dispatchEvent(new Event('open_pricing_modal'))}
-            className="w-full flex items-center justify-center gap-2 rounded-lg border border-[#e13a40]/30 hover:border-[#e13a40]/60 bg-[#e13a40]/5 hover:bg-[#e13a40]/10 py-2.5 px-3 text-xs font-bold text-[#e13a40] transition-all duration-200 cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 py-2.5 px-3 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-all duration-200 cursor-pointer"
           >
-            <Sparkles className="h-3.5 w-3.5 text-[#e13a40]" />
+            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
             <span>{currentUser?.plan === 'trial' ? 'Assinar Plano' : 'Fazer Upgrade'}</span>
           </button>
         )}

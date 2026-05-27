@@ -100,6 +100,15 @@ function AppLayout() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isOnboardingPending, setIsOnboardingPending] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      setTheme(e.detail);
+    };
+    window.addEventListener('theme-changed', handleThemeChange);
+    return () => window.removeEventListener('theme-changed', handleThemeChange);
+  }, []);
 
   // Check onboarding completed state from API settings
   useEffect(() => {
@@ -187,7 +196,7 @@ function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] text-zinc-100 font-body">
+    <div className={`flex min-h-screen font-body transition-all duration-200 ${theme === 'light' ? 'light-theme bg-[#f4f4f7] text-[#1f2937]' : 'bg-[#0a0a0a] text-zinc-100'}`}>
       {/* Sidebar */}
       <Sidebar />
 
@@ -198,7 +207,7 @@ function AppLayout() {
       <PricingModal />
 
       {/* Main Content */}
-      <main className="flex-1 ml-64 min-h-screen flex flex-col bg-[#0a0a0a] relative overflow-hidden">
+      <main className={`flex-1 ml-64 min-h-screen flex flex-col relative overflow-hidden transition-all duration-200 ${theme === 'light' ? 'bg-[#ffffff]' : 'bg-[#0a0a0a]'}`}>
         {/* Dynamic Brand Logo Watermark inside CRM */}
         {userSettings && (userSettings.profile_avatar || userSettings.onboarding_logo) && (
           <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">

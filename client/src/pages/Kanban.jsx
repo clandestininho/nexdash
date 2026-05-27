@@ -76,14 +76,27 @@ export default function Kanban() {
   // Pipelines State with dynamic localStorage mapping
   const [pipelines, setPipelines] = useState(() => {
     const stored = localStorage.getItem('dgflow_custom_pipelines');
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Migrate em-contato to qualificando if present in 'principal' pipeline
+      const migrated = parsed.map(p => {
+        if (p.id === 'principal') {
+          return {
+            ...p,
+            stages: p.stages.map(s => s.id === 'em-contato' ? { ...s, id: 'qualificando', label: 'Qualificando' } : s)
+          };
+        }
+        return p;
+      });
+      return migrated;
+    }
     return [
       {
         id: 'principal',
         name: 'Pipeline Principal',
         stages: [
           { id: 'novo-lead', label: 'Novo Lead', color: '#7A8C6E' },
-          { id: 'em-contato', label: 'Em Contato', color: '#4A90D9' },
+          { id: 'qualificando', label: 'Qualificando', color: '#4A90D9' },
           { id: 'proposta-enviada', label: 'Proposta Enviada', color: '#C9A84C' },
           { id: 'negociando', label: 'Em Negociação', color: '#D4842A' },
           { id: 'fechado', label: 'Fechado', color: '#4CAF50' },
@@ -210,7 +223,8 @@ export default function Kanban() {
       // Match pipeline and stage
       const cPipeline = c.pipeline_id || 'principal';
       if (cPipeline === selectedPipelineId) {
-        const stageId = c.current_stage || activePipeline.stages[0].id;
+        let stageId = c.current_stage || activePipeline.stages[0].id;
+        if (stageId === 'em-contato') stageId = 'qualificando';
         if (grouped[stageId]) {
           grouped[stageId].push(c);
         }
@@ -1514,7 +1528,6 @@ export default function Kanban() {
                         className="flex-1 bg-[#1a1a1a] text-white text-xs rounded-lg border border-[#1f1f1f] px-3 py-2 outline-none h-8 font-semibold"
                       />
 
-                      {/* Color select dropdown matching print 5 */}
                       <select
                         value={stage.color}
                         onChange={(e) => {
@@ -1522,14 +1535,14 @@ export default function Kanban() {
                           updated[idx].color = e.target.value;
                           setNewPipelineStages(updated);
                         }}
-                        className="bg-[#1a1a1a] text-zinc-300 text-[11px] rounded-lg border border-[#1f1f1f] px-2 py-1 outline-none h-8 font-bold cursor-pointer w-24"
+                        className="bg-[#1a1a1a] text-zinc-300 text-[11px] rounded-lg border border-[#1f1f1f] px-2 py-1 outline-none h-8 font-bold cursor-pointer w-28"
                       >
-                        <option value="blue">blue</option>
-                        <option value="yellow">yellow</option>
-                        <option value="purple">purple</option>
-                        <option value="orange">orange</option>
-                        <option value="green">green</option>
-                        <option value="red">red</option>
+                        <option value="blue">🔵 Azul</option>
+                        <option value="yellow">🟡 Amarelo</option>
+                        <option value="purple">🟣 Roxo</option>
+                        <option value="orange">🟠 Laranja</option>
+                        <option value="green">🟢 Verde</option>
+                        <option value="red">🔴 Vermelho</option>
                       </select>
 
                       {/* Delete stage button */}
