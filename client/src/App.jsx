@@ -9,6 +9,7 @@ import Log from './pages/Log';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';
 
 // New premium page imports
 import Dashboard from './pages/Dashboard';
@@ -291,6 +292,7 @@ export default function App() {
         {/* Public auth screens */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Public client proposal approval view */}
         <Route path="/proposal/:id" element={<ProposalView />} />

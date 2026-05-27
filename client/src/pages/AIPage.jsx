@@ -106,6 +106,42 @@ export default function AIPage() {
     return sanitized;
   });
 
+  // Prompt Categories State (Saves to localStorage under 'dgflow_ai_categories')
+  const [categories, setCategories] = useState(() => {
+    const stored = localStorage.getItem('dgflow_ai_categories');
+    let loadedCats = ['Tecnologia', 'Agência', 'Aplicativos', 'Varejo / Moda'];
+    if (stored) {
+      try {
+        loadedCats = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse categories from localStorage:', e);
+      }
+    }
+    
+    // Also merge with any categories from stored prompts to make sure nothing is lost
+    const storedPrompts = localStorage.getItem('dgflow_ai_prompts');
+    let promptCats = [];
+    if (storedPrompts) {
+      try {
+        const parsedPrompts = JSON.parse(storedPrompts);
+        promptCats = parsedPrompts.map(p => p.category);
+      } catch (e) {}
+    }
+    
+    const merged = Array.from(new Set([...loadedCats, ...promptCats]));
+    localStorage.setItem('dgflow_ai_categories', JSON.stringify(merged));
+    return merged;
+  });
+
+  const saveCategories = (updatedCats) => {
+    try {
+      setCategories(updatedCats);
+      localStorage.setItem('dgflow_ai_categories', JSON.stringify(updatedCats));
+    } catch (error) {
+      console.error('Failed to save categories to localStorage:', error);
+    }
+  };
+
   const savePrompts = (updatedList) => {
     try {
       setPrompts(updatedList);
@@ -183,6 +219,12 @@ export default function AIPage() {
     };
     const updated = [...prompts, newP];
     savePrompts(updated);
+    
+    // Save to permanent categories if it's new
+    if (!categories.includes(finalCategory)) {
+      const updatedCats = [...categories, finalCategory];
+      saveCategories(updatedCats);
+    }
     
     // Reset Form
     setNewPromptTitle('');
@@ -670,7 +712,7 @@ export default function AIPage() {
               </div>
 
               <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-                {['Todos', ...new Set(prompts.map(p => p.category))].map((cat) => (
+                {['Todos', ...categories].map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setSelectedDesignerCategory(cat)}
@@ -832,7 +874,7 @@ export default function AIPage() {
                         onChange={(e) => setNewPromptCategory(e.target.value)}
                         className="w-full bg-[#1a1a1a] text-white text-xs rounded-xl border border-[#1f1f1f] focus:border-[#e13a40] h-9 px-3 outline-none font-semibold cursor-pointer"
                       >
-                        {Array.from(new Set(['Tecnologia', 'Agência', 'Aplicativos', 'Varejo / Moda', ...prompts.map(p => p.category)])).map(cat => (
+                        {categories.map(cat => (
                            <option key={cat} value={cat}>{cat}</option>
                          ))}
                       </select>
@@ -945,7 +987,7 @@ export default function AIPage() {
                         </div>
 
                         {/* Interactive live crop preview screen */}
-                        <div className="h-44 w-full rounded-lg overflow-hidden border border-[#222] bg-zinc-950 relative flex items-center justify-center">
+                        <div className="w-full max-w-[240px] mx-auto rounded-lg overflow-hidden border border-[#222] bg-zinc-950 relative flex items-center justify-center" style={{ aspectRatio: '1 / 1' }}>
                           <img 
                             src={newPromptRefImage} 
                             alt="Focal Crop Preview" 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, Loader2, ChevronLeft, Sparkles, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Loader2, ChevronLeft, Sparkles, AlertCircle, Check } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { ShinyButton } from '../components/ui/ShinyButton';
@@ -64,6 +64,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isForgotMode, setIsForgotMode] = useState(false);
   const [activeQuote, setActiveQuote] = useState(0);
 
   const navigate = useNavigate();
@@ -115,9 +117,42 @@ export default function Login() {
     }
   };
 
-  // Helper alert message if social login is clicked
+  // Helper to trigger backend social OAuth redirection
   const handleSocialClick = (platform) => {
-    setError(`O login via ${platform} está configurado apenas para contas corporativas integradas. Utilize e-mail e senha.`);
+    setError('');
+    window.location.href = `/api/auth/${platform.toLowerCase()}`;
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    if (!email) {
+      setError('Por favor, informe seu e-mail corporativo.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao processar solicitação.');
+      }
+
+      setSuccessMessage(data.message || 'Instruções de redefinição de senha enviadas com sucesso!');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -244,14 +279,16 @@ export default function Login() {
           {/* Form Header */}
           <div className="flex flex-col text-center lg:text-left space-y-1">
             <h2 className="text-2xl font-extrabold text-white tracking-tight flex items-center justify-center lg:justify-start gap-2">
-              Acesse o Painel <Sparkles className="size-5 text-[#e13a40] animate-pulse" />
+              {isForgotMode ? 'Recuperar Senha' : 'Acesse o Painel'} <Sparkles className="size-5 text-[#e13a40] animate-pulse" />
             </h2>
             <p className="text-sm text-zinc-450">
-              Digite seu e-mail corporativo para fazer login na plataforma.
+              {isForgotMode 
+                ? 'Digite seu e-mail corporativo para receber o link de redefinição.'
+                : 'Digite seu e-mail corporativo para fazer login na plataforma.'}
             </p>
           </div>
 
-          {/* Error Banner */}
+          {/* Status & Error Banners */}
           {error && (
             <div className="p-3.5 bg-[#e13a40]/10 border border-[#e13a40]/20 text-[#e13a40] rounded-xl text-xs font-medium flex items-start gap-2.5 animate-fade-in shadow-sm">
               <AlertCircle className="size-4 shrink-0 mt-0.5" />
@@ -259,117 +296,195 @@ export default function Login() {
             </div>
           )}
 
-          {/* Social login block (decorative and sleek interface element) */}
-          <div className="grid grid-cols-3 gap-3">
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
-              onClick={() => handleSocialClick('Google')}
-            >
-              <GoogleIcon className="size-4 text-white" />
-            </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
-              onClick={() => handleSocialClick('Apple')}
-            >
-              <AppleIcon className="size-4 text-white" />
-            </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
-              onClick={() => handleSocialClick('GitHub')}
-            >
-              <GithubIcon className="size-4 text-white" />
-            </Button>
-          </div>
-
-          <AuthSeparator />
-
-          {/* Standard credential login form */}
-          <form onSubmit={handleLogin} className="space-y-4">
-            
-            {/* E-mail field */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450 pl-0.5">
-                E-mail Corporativo
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="voce@empresa.com"
-                  className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
+          {successMessage && (
+            <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 rounded-xl text-xs font-medium flex items-start gap-2.5 animate-fade-in shadow-sm">
+              <Check className="size-4 shrink-0 mt-0.5 text-emerald-400" />
+              <span>{successMessage}</span>
             </div>
+          )}
 
-            {/* Password field */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center px-0.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450">
-                  Senha de Acesso
-                </label>
-                <a href="#" className="text-[10px] font-bold text-[#e13a40] hover:underline hover:text-[#ff483d] transition-all">
-                  Esqueceu a senha?
-                </a>
+          {!isForgotMode ? (
+            <>
+              {/* Social login block (decorative and sleek interface element) */}
+              <div className="grid grid-cols-3 gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
+                  onClick={() => handleSocialClick('Google')}
+                >
+                  <GoogleIcon className="size-4 text-white" />
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
+                  onClick={() => handleSocialClick('Apple')}
+                >
+                  <AppleIcon className="size-4 text-white" />
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full h-11 border-zinc-800 bg-[#0e0e11] hover:bg-zinc-900 flex items-center justify-center rounded-xl"
+                  onClick={() => handleSocialClick('GitHub')}
+                >
+                  <GithubIcon className="size-4 text-white" />
+                </Button>
               </div>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm"
-                  required
+
+              <AuthSeparator />
+
+              {/* Standard credential login form */}
+              <form onSubmit={handleLogin} className="space-y-4">
+                
+                {/* E-mail field */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450 pl-0.5">
+                    E-mail Corporativo
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="voce@empresa.com"
+                      className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+
+                {/* Password field */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center px-0.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450">
+                      Senha de Acesso
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setIsForgotMode(true);
+                        setError('');
+                        setSuccessMessage('');
+                      }} 
+                      className="text-[10px] font-bold text-[#e13a40] hover:underline hover:text-[#ff483d] transition-all bg-transparent border-none cursor-pointer"
+                    >
+                      Esqueceu a senha?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+
+                {/* Submission Button */}
+                <ShinyButton
+                  type="submit"
                   disabled={isLoading}
-                />
-              </div>
-            </div>
+                  className="w-full h-11 mt-6 rounded-xl flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span className="text-sm font-semibold tracking-wide">Entrando...</span>
+                    </>
+                  ) : (
+                    <span className="text-sm font-semibold tracking-wide flex items-center gap-2">
+                      Entrar no Sistema <Sparkles className="size-4 text-[#ff483d]" />
+                    </span>
+                  )}
+                </ShinyButton>
+              </form>
 
-            {/* Submission Button */}
-            <ShinyButton
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-11 mt-6 rounded-xl flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin text-white" />
-                  <span className="text-sm font-semibold tracking-wide">Entrando...</span>
-                </>
-              ) : (
-                <span className="text-sm font-semibold tracking-wide flex items-center gap-2">
-                  Entrar no Sistema <Sparkles className="size-4 text-[#ff483d]" />
-                </span>
+              {/* Registration link and compliance footer info */}
+              <div className="text-center space-y-4 pt-2">
+                <p className="text-xs text-zinc-450 font-medium">
+                  Não tem uma conta corporativa?{' '}
+                  <Link to="/register" className="text-[#e13a40] font-bold hover:underline hover:text-[#ff483d] transition-all pl-0.5">
+                    Criar conta gratuita →
+                  </Link>
+                </p>
+                
+                <p className="text-[10px] text-zinc-600 leading-relaxed max-w-sm mx-auto">
+                  Ao continuar, você concorda com nossos{' '}
+                  <a href="#" className="hover:text-zinc-400 underline underline-offset-4 transition-all">Termos de Serviço</a>
+                  {' '}e{' '}
+                  <a href="#" className="hover:text-zinc-400 underline underline-offset-4 transition-all">Política de Privacidade</a>.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Forgot password form */}
+              {!successMessage && (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  {/* E-mail field */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-450 pl-0.5">
+                      E-mail Corporativo
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                      <Input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="voce@empresa.com"
+                        className="pl-11 bg-[#0b0b0d] border-zinc-800 text-white placeholder-zinc-550 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl w-full text-sm"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Submission Button */}
+                  <ShinyButton
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-11 mt-6 rounded-xl flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        <span className="text-sm font-semibold tracking-wide">Enviando...</span>
+                      </>
+                    ) : (
+                      <span className="text-sm font-semibold tracking-wide flex items-center gap-2">
+                        Enviar Link de Recuperação <Sparkles className="size-4 text-[#ff483d]" />
+                      </span>
+                    )}
+                  </ShinyButton>
+                </form>
               )}
-            </ShinyButton>
-          </form>
 
-          {/* Registration link and compliance footer info */}
-          <div className="text-center space-y-4 pt-2">
-            <p className="text-xs text-zinc-450 font-medium">
-              Não tem uma conta corporativa?{' '}
-              <Link to="/register" className="text-[#e13a40] font-bold hover:underline hover:text-[#ff483d] transition-all pl-0.5">
-                Criar conta gratuita →
-              </Link>
-            </p>
-            
-            <p className="text-[10px] text-zinc-600 leading-relaxed max-w-sm mx-auto">
-              Ao continuar, você concorda com nossos{' '}
-              <a href="#" className="hover:text-zinc-400 underline underline-offset-4 transition-all">Termos de Serviço</a>
-              {' '}e{' '}
-              <a href="#" className="hover:text-zinc-400 underline underline-offset-4 transition-all">Política de Privacidade</a>.
-            </p>
-          </div>
+              {/* Navigation Back */}
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotMode(false);
+                    setError('');
+                    setSuccessMessage('');
+                  }}
+                  className="text-xs text-[#e13a40] font-bold hover:underline hover:text-[#ff483d] transition-all flex items-center justify-center gap-1.5 mx-auto bg-transparent border-none cursor-pointer"
+                >
+                  <ChevronLeft className="size-3.5" /> Voltar para o Login
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </main>

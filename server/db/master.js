@@ -129,6 +129,11 @@ export function updateUserTrialEndsAt(id, trialEndsAt) {
   return getUserById(id);
 }
 
+export function updateUserPassword(id, passwordHash) {
+  runSql('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id]);
+  return getUserById(id);
+}
+
 export function getAllUsers() {
   if (!db) throw new Error('[MasterDB] Database not initialized.');
   const stmt = db.prepare('SELECT id, email, name, plan, trial_ends_at, role, amount_paid, billing_cycle, last_payment_at, phone, last_reminded_at, created_at FROM users ORDER BY created_at DESC');
@@ -157,6 +162,7 @@ export default {
   createUser, 
   updateUserPlan, 
   updateUserTrialEndsAt,
+  updateUserPassword,
   getAllUsers,
   updateUserAdminDetails
 };
