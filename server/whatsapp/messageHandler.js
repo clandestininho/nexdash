@@ -94,8 +94,18 @@ async function handleMessage(uId, message, sock) {
   }
 
   // Upsert contact to isolated database
-  const contactName = message.pushName || jid.split('@')[0];
   const phone = jid.split('@')[0];
+  let contactName = undefined;
+
+  if (fromMe === 0) {
+    contactName = message.pushName || phone;
+  } else {
+    // If the message is from me, only set the name as phone if the contact does not exist yet
+    const existing = getContactById(uId, jid);
+    if (!existing) {
+      contactName = phone;
+    }
+  }
 
   try {
     upsertContact(uId, {
@@ -209,12 +219,12 @@ async function handleMessage(uId, message, sock) {
       io.to(`user_${uId}`).emit('contact:updated', updatedContact);
       io.to(`user_${uId}`).emit('classification:new', {
         ...logEntry,
-        contact_name: updatedContact?.name || contactName,
+        contact_name: updatedContact?.name || contactName || phone,
       });
     }
 
     console.log(
-      `[MessageHandler] User ${uId}: ${contactName} (${jid}): ${previousStage} → ${result.stage} (confidence: ${result.confidence})`
+      `[MessageHandler] User ${uId}: ${updatedContact?.name || contactName || phone} (${jid}): ${previousStage} → ${result.stage} (confidence: ${result.confidence})`
     );
   } else {
     // Stage is the same, but still update last_classified timestamp

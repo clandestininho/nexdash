@@ -22,6 +22,11 @@ import { apiFetch } from '../lib/api';
 
 export default function Dashboard() {
   const [userName, setUserName] = useState('Gleison');
+  const [userSettings, setUserSettings] = useState(null);
+  const [monthlyGoal, setMonthlyGoal] = useState(10000);
+  const [goalInput, setGoalInput] = useState('10000');
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+
   const [tasks, setTasks] = useState([
     { id: 1, text: 'Enviar proposta de Identidade Visual para Estúdio Criativo', done: false },
     { id: 2, text: 'Revisar cronograma de entrega com o designer', done: true },
@@ -38,6 +43,29 @@ export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
   const [lostReasons, setLostReasons] = useState(null);
   const [isLostLoading, setIsLostLoading] = useState(true);
+
+  // Load settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          setUserSettings(data);
+          if (data.dashboard_monthly_goal) {
+            const savedGoal = parseFloat(data.dashboard_monthly_goal);
+            if (!isNaN(savedGoal) && savedGoal > 0) {
+              setMonthlyGoal(savedGoal);
+              setGoalInput(String(savedGoal));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar configurações no dashboard:', err);
+      }
+    };
+    loadSettings();
+  }, []);
 
   // Load contacts
   useEffect(() => {
@@ -122,12 +150,36 @@ export default function Dashboard() {
     setReminders(reminders.filter((_, i) => i !== index));
   };
 
+  const handleSaveGoal = async () => {
+    const val = parseFloat(goalInput);
+    if (isNaN(val) || val <= 0) {
+      alert('Por favor, insira um valor de meta válido.');
+      return;
+    }
+    setMonthlyGoal(val);
+    setIsEditingGoal(false);
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dashboard_monthly_goal: String(val) })
+      });
+    } catch (err) {
+      console.error('Erro ao salvar meta no servidor:', err);
+    }
+  };
+
   // SVG Chart path calculators
   const revenueData = [1000, 3200, 2100, 5400, 4800, 8900, 7500];
-  const points = revenueData.map((val, index) => `${50 + index * 100},${220 - (val / 10000) * 180}`).join(' ');
+  const points = revenueData.map((val, index) => `${50 + index * 100},${220 - (val / Math.max(monthlyGoal, 5000)) * 180}`).join(' ');
 
-  const formatBRL = (val) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+  const formatCurrency = (val) => {
+    const currency = userSettings?.profile_moeda || 'BRL';
+    try {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currency }).format(val || 0);
+    } catch {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+    }
   };
 
   // Retrieve calculated conversion velocity or display default
@@ -158,15 +210,59 @@ export default function Dashboard() {
         
         {/* Quick stat summary in banner */}
         <div className="flex items-center gap-4 bg-zinc-900/50 backdrop-blur-sm p-4 rounded-xl border border-zinc-800 shrink-0">
-          <div className="text-center px-2">
-            <span className="text-xs text-zinc-450 uppercase tracking-wider block font-bold">Meta Mensal</span>
-            <span className="text-base font-bold text-white">R$ 10.000,00</span>
-          </div>
+          {isEditingGoal ? (
+            <div className="text-center px-2 flex flex-col items-center gap-1 animate-fade-in">
+              <span className="text-[10px] text-zinc-450 uppercase tracking-wider block font-bold">Meta Mensal</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <input
+                  type="number"
+                  value={goalInput}
+                  onChange={(e) => setGoalInput(e.target.value)}
+                  className="bg-zinc-950 text-white border border-zinc-800 rounded px-1.5 py-0.5 text-xs font-mono w-20 outline-none focus:border-[#e13a40] h-6"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveGoal();
+                    if (e.key === 'Escape') setIsEditingGoal(false);
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveGoal}
+                  className="p-1 rounded bg-[#e13a40] text-white hover:bg-[#c52f34] transition-colors flex items-center justify-center h-6 w-6 shrink-0"
+                  title="Salvar"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setIsEditingGoal(false)}
+                  className="p-1 rounded bg-zinc-800 text-zinc-400 hover:text-white transition-colors flex items-center justify-center h-6 w-6 shrink-0"
+                  title="Cancelar"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center px-2 group cursor-pointer" onClick={() => setIsEditingGoal(true)} title="Clique para editar sua meta mensal">
+              <span className="text-xs text-zinc-450 uppercase tracking-wider block font-bold flex items-center justify-center gap-1 select-none">
+                Meta Mensal
+                <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-[#e13a40]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </span>
+              <span className="text-base font-bold text-white block group-hover:text-[#e13a40] transition-colors font-mono">
+                {formatCurrency(monthlyGoal)}
+              </span>
+            </div>
+          )}
           <div className="h-8 w-px bg-zinc-800" />
           <div className="text-center px-2">
             <span className="text-xs text-zinc-450 uppercase tracking-wider block font-bold">Atingido</span>
             <span className="text-base font-bold text-[#e13a40] font-mono">
-              {formatBRL(metrics?.totalRevenue || 0)} ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / 10000) * 100) : 0}%)
+              {formatCurrency(metrics?.totalRevenue || 0)} ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / monthlyGoal) * 100) : 0}%)
             </span>
           </div>
         </div>
@@ -178,12 +274,12 @@ export default function Dashboard() {
         {/* Metric 1: Faturamento */}
         <Card className="bg-[#0c0c0e] border-[#1f1f23] text-white hover:border-zinc-800 transition-all duration-200">
           <CardContent className="pt-4 flex items-center justify-between">
-            <div className="space-y-1">
+            <div className="space-y-1 col-span-2">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">Faturamento</span>
-              <h3 className="text-2xl font-bold text-white font-mono">{formatBRL(metrics?.totalRevenue || 0)}</h3>
-              <p className="text-xs text-zinc-400 font-body">Meta: R$ 10.000,00 ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / 10000) * 100) : 0}%)</p>
+              <h3 className="text-2xl font-bold text-white font-mono">{formatCurrency(metrics?.totalRevenue || 0)}</h3>
+              <p className="text-xs text-zinc-400 font-body">Meta: {formatCurrency(monthlyGoal)} ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / monthlyGoal) * 100) : 0}%)</p>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-orange-600/10 border border-orange-500/20 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-orange-600/10 border border-orange-500/20 flex items-center justify-center shrink-0">
               <DollarSign className="h-5 w-5 text-[#e13a40]" />
             </div>
           </CardContent>
@@ -197,7 +293,7 @@ export default function Dashboard() {
               <h3 className="text-2xl font-bold text-white font-mono">{metrics?.conversionRate || 0}%</h3>
               <p className="text-xs text-zinc-400 font-body">{metrics?.conversionsToday || 0} negócios fechados hoje</p>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-[#e13a40]/10 border border-[#e13a40]/20 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-[#e13a40]/10 border border-[#e13a40]/20 flex items-center justify-center shrink-0">
               <Percent className="h-5 w-5 text-[#e13a40]" />
             </div>
           </CardContent>
@@ -208,10 +304,10 @@ export default function Dashboard() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">CAC</span>
-              <h3 className="text-2xl font-bold text-white font-mono">R$ 45,80</h3>
+              <h3 className="text-2xl font-bold text-white font-mono">{formatCurrency(45.80)}</h3>
               <p className="text-xs text-zinc-400 font-body">Custo de Aquisição Médio</p>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
               <Users className="h-5 w-5 text-zinc-400" />
             </div>
           </CardContent>
@@ -222,10 +318,10 @@ export default function Dashboard() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">LTV</span>
-              <h3 className="text-2xl font-bold text-white font-mono">R$ 3.850,00</h3>
+              <h3 className="text-2xl font-bold text-white font-mono">{formatCurrency(3850.00)}</h3>
               <p className="text-xs text-zinc-400 font-body">Valor do Ciclo de Vida do Cliente</p>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
               <TrendingUp className="h-5 w-5 text-zinc-400" />
             </div>
           </CardContent>

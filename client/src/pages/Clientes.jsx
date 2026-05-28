@@ -39,6 +39,7 @@ import { formatPhone, formatRelativeTime } from '../lib/utils';
 
 export default function Clientes() {
   const [contacts, setContacts] = useState([]);
+  const [userSettings, setUserSettings] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('todos');
@@ -145,6 +146,7 @@ export default function Clientes() {
       try {
         const res = await apiFetch('/api/settings');
         const data = await res.json();
+        setUserSettings(data);
         if (data && data.lead_custom_fields) {
           setLeadConfig(JSON.parse(data.lead_custom_fields));
         }
@@ -715,7 +717,7 @@ export default function Clientes() {
           <div>
             <span className="text-sm text-zinc-300 font-bold font-body">Valor Estimado Total</span>
             <p className="text-2xl font-extrabold text-white font-mono mt-2">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: userSettings?.profile_moeda || 'BRL' }).format(totalValue)}
             </p>
           </div>
           <span className="text-xs text-zinc-400 font-semibold font-body mt-1 block">valor mensal total</span>
