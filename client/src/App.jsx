@@ -114,19 +114,38 @@ function AppLayout() {
   // Check onboarding completed state from API settings
   useEffect(() => {
     const checkOnboarding = async () => {
+      const cached = localStorage.getItem('onboarding_completed');
+      if (cached === 'true') {
+        setIsOnboardingPending(false);
+      }
+
       try {
-        const res = await apiFetch('/api/settings');
+        const res = await apiFetch('/api/settings/onboarding-status');
         const data = await res.json();
-        setUserSettings(data);
-        if (data && data.onboarding_completed === 'true') {
+        if (data && data.onboarding_completed === true) {
+          localStorage.setItem('onboarding_completed', 'true');
           setIsOnboardingPending(false);
+          
+          // Background load full settings for avatar/logo display
+          const settingsRes = await apiFetch('/api/settings');
+          const settingsData = await settingsRes.json();
+          setUserSettings(settingsData);
         } else {
+          localStorage.removeItem('onboarding_completed');
           setIsOnboardingPending(true);
         }
       } catch (err) {
-        console.error('[App:Onboarding] Error checking onboarding status, defaulting to pending:', err);
-        // Default to pending on transient API errors to prevent silent bypass
-        setIsOnboardingPending(true);
+        console.error('[App:Onboarding] Error checking onboarding status:', err);
+        if (cached === 'true') {
+          setIsOnboardingPending(false);
+          try {
+            const settingsRes = await apiFetch('/api/settings');
+            const settingsData = await settingsRes.json();
+            setUserSettings(settingsData);
+          } catch {}
+        } else {
+          setIsOnboardingPending(true);
+        }
       }
     };
     checkOnboarding();
@@ -193,7 +212,18 @@ function AppLayout() {
   }
 
   if (isOnboardingPending) {
-    return <Onboarding onComplete={() => setIsOnboardingPending(false)} />;
+    return (
+      <Onboarding 
+        onComplete={() => {
+          localStorage.setItem('onboarding_completed', 'true');
+          setIsOnboardingPending(false);
+          apiFetch('/api/settings')
+            .then(res => res.json())
+            .then(data => setUserSettings(data))
+            .catch(() => {});
+        }} 
+      />
+    );
   }
 
   return (

@@ -31,6 +31,7 @@ export default function AdminSidebar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('onboarding_completed');
     navigate('/login');
   };
 

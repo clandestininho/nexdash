@@ -91,6 +91,7 @@ export default function Sidebar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('onboarding_completed');
     disconnectSocket();
     navigate('/login');
   };

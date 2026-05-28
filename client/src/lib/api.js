@@ -24,6 +24,7 @@ export async function apiFetch(url, options = {}) {
     // Session expired or invalid token - log out user
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('onboarding_completed');
     
     // Smoothly redirect to login
     if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
@@ -59,6 +60,7 @@ export async function apiUpload(url, file, options = {}) {
   if (response.status === 401 || response.status === 403) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('onboarding_completed');
     
     if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
       window.location.href = '/login';

@@ -50,6 +50,19 @@ router.post('/settings/upload', authenticateToken, upload.single('file'), (req, 
   }
 });
 
+
+// GET /api/settings/onboarding-status — return onboarding_completed key quickly
+router.get('/settings/onboarding-status', authenticateToken, (req, res) => {
+  const userId = req.user.id;
+  try {
+    const status = getSetting(userId, 'onboarding_completed');
+    res.json({ onboarding_completed: status === 'true' });
+  } catch (error) {
+    console.error(`[Route:Settings] User ${userId}: Error getting onboarding status:`, error.message);
+    res.status(500).json({ error: 'Falha ao buscar status do onboarding.' });
+  }
+});
+
 // GET /api/log — return latest classification log entries
 router.get('/log', authenticateToken, (req, res) => {
   const userId = req.user.id;

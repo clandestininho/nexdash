@@ -21,7 +21,8 @@ import {
   ChevronRight,
   Loader2
 } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, apiUpload } from '../lib/api';
+import { compressImage } from '../lib/imageCompressor';
 import logo from '../logo.png';
 
 // Services Presets Database by Niche
@@ -154,6 +155,7 @@ export default function Onboarding({ onComplete }) {
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState(null);
   const [activeTip, setActiveTip] = useState(0);
+  const [uploadingField, setUploadingField] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -267,23 +269,35 @@ export default function Onboarding({ onComplete }) {
     }
   };
 
-  const handleLogoUpload = (e, field) => {
+  const handleLogoUpload = async (e, field) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Arquivo muito grande! O limite é de 5MB.');
-      return;
-    }
+    setUploadingField(field);
+    try {
+      // Compress the image to 400x400 for branding avatar/logo at 85% quality
+      const compressedBlob = await compressImage(file, 400, 400, 0.85);
+      const compressedFile = new File([compressedBlob], file.name || 'branding.jpg', {
+        type: 'image/jpeg'
+      });
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({
-        ...prev,
-        [field]: reader.result
-      }));
-    };
-    reader.readAsDataURL(file);
+      // Upload to server
+      const res = await apiUpload('/api/settings/upload', compressedFile);
+      const data = await res.json();
+      if (data.success && data.url) {
+        setFormData(prev => ({
+          ...prev,
+          [field]: data.url
+        }));
+      } else {
+        throw new Error(data.error || 'Falha no upload do arquivo.');
+      }
+    } catch (err) {
+      console.error('[Onboarding] Error uploading asset:', err);
+      alert('Erro ao fazer upload da imagem: ' + err.message);
+    } finally {
+      setUploadingField(null);
+    }
   };
 
   const handlePhoneChange = (val) => {
@@ -709,7 +723,9 @@ export default function Onboarding({ onComplete }) {
                 <div className="flex flex-col items-center justify-center pt-4">
                   <div className="relative group">
                     <div className="h-28 w-28 rounded-full border border-zinc-800 bg-[#0b0b0d] flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:border-[#e13a40]">
-                      {formData.profile_avatar ? (
+                      {uploadingField === 'profile_avatar' ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-[#e13a40]" />
+                      ) : formData.profile_avatar ? (
                         <img src={formData.profile_avatar} alt="Logo preview" className="h-full w-full object-cover" />
                       ) : (
                         <Upload className="h-6 w-6 text-zinc-650 transition-colors group-hover:text-zinc-400" />
@@ -1083,7 +1099,9 @@ export default function Onboarding({ onComplete }) {
                 <div className="flex flex-col items-center justify-center pt-2">
                   <div className="relative group">
                     <div className="h-28 w-28 rounded-xl border border-dashed border-zinc-800 bg-[#0b0b0d]/50 flex flex-col items-center justify-center p-2 text-center overflow-hidden transition-all duration-300 group-hover:border-[#e13a40]">
-                      {formData.onboarding_logo || formData.profile_avatar ? (
+                      {uploadingField === 'onboarding_logo' ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-[#e13a40]" />
+                      ) : formData.onboarding_logo || formData.profile_avatar ? (
                         <img src={formData.onboarding_logo || formData.profile_avatar} alt="Portfolio logo" className="h-full w-full object-contain" />
                       ) : (
                         <div className="space-y-0.5 flex flex-col items-center justify-center">
