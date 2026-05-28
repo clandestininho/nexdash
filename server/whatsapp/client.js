@@ -59,10 +59,10 @@ async function autoConnectAllUsers() {
  * Connect a specific user to WhatsApp.
  * @param {string|number} userId
  */
-export async function connectUser(userId) {
+export async function connectUser(userId, forceReconnect = false) {
   const uId = String(userId);
 
-  if (activeSessions.has(uId)) {
+  if (activeSessions.has(uId) && !forceReconnect) {
     const session = activeSessions.get(uId);
     if (session.status === 'connected' || session.status === 'connecting') {
       console.log(`[WhatsApp] User ${uId} is already connected/connecting.`);
@@ -77,13 +77,16 @@ export async function connectUser(userId) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
   }
 
+  const existingSession = activeSessions.get(uId);
+  const reconnectAttempts = existingSession ? existingSession.reconnectAttempts : 0;
+
   const session = {
     socket: null,
     qrCode: null,
     status: 'connecting',
     phoneNumber: null,
     profilePic: null,
-    reconnectAttempts: 0,
+    reconnectAttempts: reconnectAttempts,
   };
 
   activeSessions.set(uId, session);
@@ -182,7 +185,7 @@ export async function connectUser(userId) {
           emitUserStatus(uId);
 
           setTimeout(() => {
-            connectUser(uId);
+            connectUser(uId, true);
           }, delay);
         } else {
           console.error(`[WhatsApp] User ${uId}: Reconnect attempts exhausted or logged out.`);
