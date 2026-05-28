@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import { apiFetch } from '../lib/api';
 
 const DEFAULT_CONTRACT_TEMPLATE = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 
@@ -311,9 +312,43 @@ export default function Proposals() {
     setCustomServiceModalOpen(false);
   };
 
+  // Save/Delete to server helper methods
+  const saveProposalToServer = async (proposal) => {
+    try {
+      await apiFetch('/api/proposals', {
+        method: 'POST',
+        body: JSON.stringify(proposal)
+      });
+    } catch (err) {
+      console.error("Erro ao sincronizar orçamento no servidor:", err);
+    }
+  };
+
+  const deleteProposalFromServer = async (id) => {
+    try {
+      await apiFetch(`/api/proposals/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.error("Erro ao remover orçamento no servidor:", err);
+    }
+  };
+
   // Load contracts and templates on mount
   useEffect(() => {
-    const loadProps = () => {
+    const loadProps = async () => {
+      try {
+        const res = await apiFetch('/api/proposals');
+        if (res.ok) {
+          const data = await res.json();
+          setProposals(data);
+          localStorage.setItem('dgflow_proposals', JSON.stringify(data));
+          return;
+        }
+      } catch (err) {
+        console.warn("Erro ao buscar orçamentos da API, usando fallback local:", err);
+      }
+
       const storedProposals = localStorage.getItem('dgflow_proposals');
       if (storedProposals) {
         setProposals(JSON.parse(storedProposals));
@@ -404,8 +439,11 @@ export default function Proposals() {
       compiled = compiled.replace(new RegExp(shortcode, 'g'), value || `[${shortcode}]`);
     }
 
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    const userId = storedUser?.id || '1';
+
     const newProposal = {
-      id: 'prop-' + Date.now(),
+      id: `prop_${userId}_${Date.now()}`,
       projectName: wizProjectName,
       clientName: wizClientName,
       amount: finalValue,
@@ -423,6 +461,7 @@ export default function Proposals() {
     };
 
     saveProposalsToStorage([newProposal, ...proposals]);
+    saveProposalToServer(newProposal);
     setIsWizardOpen(false);
 
     // Automatically copy approval link, trigger toast, and open page in new tab
@@ -466,6 +505,7 @@ export default function Proposals() {
   const handleDeleteProposal = (id) => {
     if (confirm("Remover este orçamento?")) {
       saveProposalsToStorage(proposals.filter(p => p.id !== id));
+      deleteProposalFromServer(id);
     }
   };
 
@@ -736,8 +776,10 @@ export default function Proposals() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setActiveActionMenuId(null);
-                                  const updated = proposals.map(p => p.id === prop.id ? { ...p, status: 'sent' } : p);
+                                  const updatedItem = { ...prop, status: 'sent' };
+                                  const updated = proposals.map(p => p.id === prop.id ? updatedItem : p);
                                   saveProposalsToStorage(updated);
+                                  saveProposalToServer(updatedItem);
                                   showToastNotification("Orçamento enviado com sucesso!");
                                 }}
                                 className="w-full px-3 py-1.5 rounded-lg text-left text-[11px] font-bold hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2 text-zinc-300 cursor-pointer"
@@ -750,8 +792,10 @@ export default function Proposals() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setActiveActionMenuId(null);
-                                  const updated = proposals.map(p => p.id === prop.id ? { ...p, status: 'sent' } : p);
+                                  const updatedItem = { ...prop, status: 'sent' };
+                                  const updated = proposals.map(p => p.id === prop.id ? updatedItem : p);
                                   saveProposalsToStorage(updated);
+                                  saveProposalToServer(updatedItem);
                                   showToastNotification("Orçamento concluído!");
                                 }}
                                 className="w-full px-3 py-1.5 rounded-lg text-left text-[11px] font-bold hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2 text-zinc-300 cursor-pointer"
@@ -764,8 +808,10 @@ export default function Proposals() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setActiveActionMenuId(null);
-                                  const updated = proposals.map(p => p.id === prop.id ? { ...p, status: 'approved' } : p);
+                                  const updatedItem = { ...prop, status: 'approved' };
+                                  const updated = proposals.map(p => p.id === prop.id ? updatedItem : p);
                                   saveProposalsToStorage(updated);
+                                  saveProposalToServer(updatedItem);
                                   showToastNotification("Orçamento aprovado manualmente!");
                                 }}
                                 className="w-full px-3 py-1.5 rounded-lg text-left text-[11px] font-bold hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2 text-zinc-300 cursor-pointer"

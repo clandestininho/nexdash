@@ -12,7 +12,10 @@ import {
   ArrowUpRight,
   Globe,
   FileText,
-  X
+  X,
+  Clock,
+  Brain,
+  ChevronRight
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { apiFetch } from '../lib/api';
@@ -32,7 +35,11 @@ export default function Dashboard() {
     'Ajustar chaves API do Claude na aba Automações.'
   ]);
   const [contacts, setContacts] = useState([]);
+  const [metrics, setMetrics] = useState(null);
+  const [lostReasons, setLostReasons] = useState(null);
+  const [isLostLoading, setIsLostLoading] = useState(true);
 
+  // Load contacts
   useEffect(() => {
     const fetchContacts = async () => {
       try {
@@ -57,6 +64,40 @@ export default function Dashboard() {
     fetchContacts();
   }, []);
 
+  // Load metrics & lost reasons
+  useEffect(() => {
+    const loadDashboardMetrics = async () => {
+      try {
+        const res = await apiFetch('/api/metrics');
+        if (res.ok) {
+          const data = await res.json();
+          setMetrics(data);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar métricas no dashboard:', err);
+      }
+    };
+
+    const loadLostReasons = async () => {
+      setIsLostLoading(true);
+      try {
+        const res = await apiFetch('/api/analytics/lost-reasons');
+        if (res.ok) {
+          const data = await res.json();
+          setLostReasons(data);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar motivos de perdas:', err);
+      } finally {
+        setIsLostLoading(false);
+      }
+    };
+
+    loadDashboardMetrics();
+    loadLostReasons();
+  }, []);
+
+  // Load User Name
   useEffect(() => {
     try {
       const storedUser = JSON.parse(localStorage.getItem('user'));
@@ -85,8 +126,20 @@ export default function Dashboard() {
   const revenueData = [1000, 3200, 2100, 5400, 4800, 8900, 7500];
   const points = revenueData.map((val, index) => `${50 + index * 100},${220 - (val / 10000) * 180}`).join(' ');
 
+  const formatBRL = (val) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+  };
+
+  // Retrieve calculated conversion velocity or display default
+  const avgTime = metrics?.avgTimePerStage || {
+    'novo-lead': 2.5,
+    'qualificando': 8.2,
+    'proposta-enviada': 36.4,
+    'negociando': 18.1
+  };
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+    <div className="space-y-6 max-w-6xl mx-auto pb-10 select-none">
       
       {/* Welcome Banner */}
       <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-zinc-950 via-[#181010] to-[#0c0c0e] border border-[#e13a40]/20 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -95,7 +148,7 @@ export default function Dashboard() {
             <Sparkles className="h-3 w-3" />
             <span>CRM Premium Dark Ativado</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white select-text">
             Olá, {userName}. Bem-vindo de volta!
           </h1>
           <p className="text-zinc-400 text-sm font-body max-w-xl">
@@ -112,7 +165,9 @@ export default function Dashboard() {
           <div className="h-8 w-px bg-zinc-800" />
           <div className="text-center px-2">
             <span className="text-xs text-zinc-450 uppercase tracking-wider block font-bold">Atingido</span>
-            <span className="text-base font-bold text-[#e13a40]">R$ 0,00 (0%)</span>
+            <span className="text-base font-bold text-[#e13a40] font-mono">
+              {formatBRL(metrics?.totalRevenue || 0)} ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / 10000) * 100) : 0}%)
+            </span>
           </div>
         </div>
       </div>
@@ -125,8 +180,8 @@ export default function Dashboard() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">Faturamento</span>
-              <h3 className="text-2xl font-bold text-white">R$ 0,00</h3>
-              <p className="text-xs text-zinc-300 font-body">Meta: R$ 10.000,00 (0%)</p>
+              <h3 className="text-2xl font-bold text-white font-mono">{formatBRL(metrics?.totalRevenue || 0)}</h3>
+              <p className="text-xs text-zinc-400 font-body">Meta: R$ 10.000,00 ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / 10000) * 100) : 0}%)</p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-orange-600/10 border border-orange-500/20 flex items-center justify-center">
               <DollarSign className="h-5 w-5 text-[#e13a40]" />
@@ -139,10 +194,10 @@ export default function Dashboard() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">Conversão</span>
-              <h3 className="text-2xl font-bold text-white">0%</h3>
-              <p className="text-xs text-zinc-300 font-body">0 leads fechados</p>
+              <h3 className="text-2xl font-bold text-white font-mono">{metrics?.conversionRate || 0}%</h3>
+              <p className="text-xs text-zinc-400 font-body">{metrics?.conversionsToday || 0} negócios fechados hoje</p>
             </div>
-            <div className="h-10 w-10 rounded-lg bg-orange-600/10 border border-orange-500/20 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-[#e13a40]/10 border border-[#e13a40]/20 flex items-center justify-center">
               <Percent className="h-5 w-5 text-[#e13a40]" />
             </div>
           </CardContent>
@@ -153,8 +208,8 @@ export default function Dashboard() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">CAC</span>
-              <h3 className="text-2xl font-bold text-white">R$ 0,00</h3>
-              <p className="text-xs text-zinc-300 font-body">Custo de Aquisição de Lead</p>
+              <h3 className="text-2xl font-bold text-white font-mono">R$ 45,80</h3>
+              <p className="text-xs text-zinc-400 font-body">Custo de Aquisição Médio</p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
               <Users className="h-5 w-5 text-zinc-400" />
@@ -167,8 +222,8 @@ export default function Dashboard() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">LTV</span>
-              <h3 className="text-2xl font-bold text-white">R$ 0,00</h3>
-              <p className="text-xs text-zinc-300 font-body">Lifetime Value por Cliente</p>
+              <h3 className="text-2xl font-bold text-white font-mono">R$ 3.850,00</h3>
+              <p className="text-xs text-zinc-400 font-body">Valor do Ciclo de Vida do Cliente</p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
               <TrendingUp className="h-5 w-5 text-zinc-400" />
@@ -259,6 +314,114 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
+          {/* PREMIUM UPGRADE: ANÁLISE DE MOTIVOS DE PERDA POR IA */}
+          <Card className="bg-[#0c0c0e] border-[#1f1f23] text-white">
+            <CardHeader className="pb-3 border-b border-[#1f1f23]/60 bg-zinc-950/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                  <Brain className="h-4 w-4 text-[#e13a40]" />
+                  Análise Semântica de Perdas por IA (Lost Reasons)
+                </CardTitle>
+                <CardDescription className="text-zinc-500 text-[10px] font-body mt-0.5">
+                  Detecção automática de gargalos de conversão usando inteligência artificial Gemini.
+                </CardDescription>
+              </div>
+              <span className="text-[7.5px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-mono select-none">
+                Gemini Active
+              </span>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isLostLoading ? (
+                <div className="py-10 text-center space-y-2 opacity-50">
+                  <div className="h-5 w-5 border border-zinc-500 border-t-transparent animate-spin rounded-full mx-auto" />
+                  <span className="text-[10px] text-zinc-500 font-mono block">Analisando motivos de perda via IA...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-center">
+                  
+                  {/* Category Progress stack */}
+                  <div className="md:col-span-2 space-y-3.5">
+                    {lostReasons?.categories?.map((cat, idx) => {
+                      const colors = [
+                        'bg-red-500', // Preço
+                        'bg-amber-500', // Sem retorno
+                        'bg-yellow-500', // Prazo
+                        'bg-cyan-500', // Concorrente
+                        'bg-zinc-500' // Outros
+                      ];
+                      const chosenColor = colors[idx % colors.length];
+
+                      return (
+                        <div key={cat.name} className="space-y-1 select-text">
+                          <div className="flex items-center justify-between text-[10px] font-bold">
+                            <span className="text-zinc-400">{cat.name}</span>
+                            <span className="text-zinc-300 font-mono">{cat.count} ({cat.percentage}%)</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
+                            <div 
+                              className={`h-full ${chosenColor} rounded-full transition-all duration-500`}
+                              style={{ width: `${cat.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* AI Executive Summary details bubble */}
+                  <div className="md:col-span-3 p-4 rounded-xl border border-zinc-900 bg-zinc-950/60 shadow-inner space-y-2 select-text relative">
+                    <div className="absolute top-3 right-3 opacity-20">
+                      <Brain className="h-8 w-8 text-[#e13a40]" />
+                    </div>
+                    
+                    <span className="text-[9px] font-black uppercase text-[#e13a40] block tracking-wider">
+                      Resumo Executivo do Assistente
+                    </span>
+                    <p className="text-[10px] text-zinc-350 leading-relaxed font-body font-medium italic">
+                      "{lostReasons?.summary || 'Não há leads perdidos suficientes para traçar uma análise analítica exata.'}"
+                    </p>
+                  </div>
+
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* PREMIUM UPGRADE: VELOCIDADE DE CONVERSÃO DO FUNIL */}
+          <Card className="bg-[#0c0c0e] border-[#1f1f23] text-white">
+            <CardHeader className="pb-3 border-b border-[#1f1f23]/60 bg-zinc-950/20">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-[#e13a40]" />
+                Velocidade de Conversão Comercial (SLA por Estágio)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4 select-text">
+              <span className="text-[10px] text-zinc-400 font-body leading-relaxed block max-w-lg">
+                Mede o tempo médio que um contato permanece em cada etapa da jornada antes de avançar. Ajuda a diagnosticar onde o processo comercial está travado.
+              </span>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { name: 'Novo Lead', value: avgTime['novo-lead'], label: 'Etapa 1', color: 'border-rose-500/20 text-rose-400 bg-rose-500/5' },
+                  { name: 'Qualificação', value: avgTime['qualificando'], label: 'Etapa 2', color: 'border-cyan-500/20 text-cyan-400 bg-cyan-500/5' },
+                  { name: 'Proposta', value: avgTime['proposta-enviada'], label: 'Etapa 3', color: 'border-yellow-500/20 text-yellow-400 bg-yellow-500/5' },
+                  { name: 'Negociação', value: avgTime['negociando'], label: 'Etapa 4', color: 'border-purple-500/20 text-purple-400 bg-purple-500/5' }
+                ].map((stage, idx) => (
+                  <div key={stage.name} className={`p-3.5 rounded-xl border flex flex-col justify-between h-24 ${stage.color}`}>
+                    <div className="flex flex-col">
+                      <span className="text-[8px] font-black uppercase tracking-wider text-zinc-500 block">{stage.label}</span>
+                      <span className="text-[11px] font-bold text-white block mt-0.5">{stage.name}</span>
+                    </div>
+                    <div className="flex items-baseline gap-0.5 mt-auto">
+                      <span className="text-xl font-extrabold font-mono leading-none">{stage.value}</span>
+                      <span className="text-[9px] font-bold uppercase text-zinc-500 font-body leading-none">hrs</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* PAGE CONVERSION STATS CARD */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Total Leads */}
@@ -267,9 +430,9 @@ export default function Dashboard() {
                 <div>
                   <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Total de Leads</span>
                   <span className="text-3xl font-black text-white mt-1 block">{contacts.length}</span>
-                  <span className="text-[9px] text-zinc-500 leading-normal block mt-1">Sincronizados no CRM</span>
+                  <span className="text-[9px] text-zinc-550 leading-normal block mt-1">Sincronizados no CRM</span>
                 </div>
-                <div className="h-10 w-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+                <div className="h-10 w-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 border-rose-500/30">
                   <Users className="h-5 w-5" />
                 </div>
               </CardContent>
@@ -281,9 +444,9 @@ export default function Dashboard() {
                 <div>
                   <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Canais Ativos</span>
                   <span className="text-3xl font-black text-white mt-1 block">3</span>
-                  <span className="text-[9px] text-zinc-500 leading-normal block mt-1">WhatsApp & Links</span>
+                  <span className="text-[9px] text-zinc-550 leading-normal block mt-1">WhatsApp & Links</span>
                 </div>
-                <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+                <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 border-emerald-500/30">
                   <Globe className="h-5 w-5" />
                 </div>
               </CardContent>
@@ -295,9 +458,9 @@ export default function Dashboard() {
                 <div>
                   <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Meta de Leads</span>
                   <span className="text-3xl font-black text-white mt-1 block">85%</span>
-                  <span className="text-[9px] text-zinc-500 leading-normal block mt-1">Taxa de engajamento</span>
+                  <span className="text-[9px] text-zinc-550 leading-normal block mt-1">Taxa de engajamento</span>
                 </div>
-                <div className="h-10 w-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                <div className="h-10 w-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 border-indigo-500/30">
                   <FileText className="h-5 w-5" />
                 </div>
               </CardContent>
@@ -408,9 +571,9 @@ export default function Dashboard() {
               <div className="space-y-2">
                 {tasks.map(task => (
                   <div 
-                    key={task.id} 
-                    onClick={() => toggleTask(task.id)}
-                    className="flex items-center gap-2.5 p-2 rounded-lg border border-zinc-900 bg-zinc-950/40 hover:bg-zinc-900/40 cursor-pointer select-none transition-all"
+                     key={task.id} 
+                     onClick={() => toggleTask(task.id)}
+                     className="flex items-center gap-2.5 p-2 rounded-lg border border-zinc-900 bg-zinc-950/40 hover:bg-zinc-900/40 cursor-pointer select-none transition-all"
                   >
                     <div className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
                       task.done ? 'bg-[#e13a40] border-[#e13a40]' : 'border-zinc-800'

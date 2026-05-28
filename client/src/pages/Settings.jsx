@@ -53,7 +53,8 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { apiFetch } from '../lib/api';
+import { apiFetch, apiUpload } from '../lib/api';
+import { compressImage } from '../lib/imageCompressor';
 
 const TABS = [
   { id: 'perfil', label: 'Perfil', icon: User },
@@ -86,6 +87,12 @@ export default function Settings() {
   const [idioma, setIdioma] = useState('pt-BR');
   const [email, setEmail] = useState('gleisonsax@gmail.com');
   const [avatarPreview, setAvatarPreview] = useState(null);
+
+  // Payment integration states
+  const [asaasKey, setAsaasKey] = useState('');
+  const [mercadopagoKey, setMercadopagoKey] = useState('');
+  const [stripeKey, setStripeKey] = useState('');
+  const [selectedIntegration, setSelectedIntegration] = useState(null);
 
   // SECURITY (Segurança Card inside Perfil) states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -211,6 +218,9 @@ export default function Settings() {
         if (settings.profile_idioma) setIdioma(settings.profile_idioma);
         if (settings.profile_email) setEmail(settings.profile_email);
         if (settings.profile_avatar) setAvatarPreview(settings.profile_avatar);
+        if (settings.asaas_api_key) setAsaasKey(settings.asaas_api_key);
+        if (settings.mercadopago_api_key) setMercadopagoKey(settings.mercadopago_api_key);
+        if (settings.stripe_api_key) setStripeKey(settings.stripe_api_key);
       } catch (err) {
         console.error('Erro ao carregar configurações:', err);
       }
@@ -239,6 +249,9 @@ export default function Settings() {
         profile_idioma: idioma,
         profile_email: email,
         profile_avatar: avatarPreview || '',
+        asaas_api_key: asaasKey,
+        mercadopago_api_key: mercadopagoKey,
+        stripe_api_key: stripeKey,
       };
 
       await apiFetch('/api/settings', {
@@ -254,14 +267,30 @@ export default function Settings() {
     setTimeout(() => setSaveStatus(null), 3000);
   };
 
-  const handleAvatarChange = (e) => {
+  const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        setSaveStatus('saving');
+        // Compress image to 400x400 for profile avatar at 80% quality
+        const compressedBlob = await compressImage(file, 400, 400, 0.8);
+        const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+        
+        // Upload to server
+        const res = await apiUpload('/api/settings/upload', compressedFile);
+        const data = await res.json();
+        if (data.success && data.url) {
+          setAvatarPreview(data.url);
+          setSaveStatus('success');
+        } else {
+          throw new Error('Falha no upload do arquivo.');
+        }
+      } catch (err) {
+        console.error('[Settings] Error uploading avatar:', err);
+        alert('Erro ao fazer upload da imagem: ' + err.message);
+        setSaveStatus('error');
+      }
+      setTimeout(() => setSaveStatus(null), 3500);
     }
   };
 
@@ -1489,15 +1518,15 @@ export default function Settings() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
                   {[
                     { id: 'gcal', label: 'Google Calendar', icon: Calendar, connected: false },
-                    { id: 'asaas', label: 'Asaas', icon: CreditCard, connected: false },
-                    { id: 'abacate', label: 'AbacatePay', icon: CreditCard, connected: false },
-                    { id: 'mercado', label: 'Mercado Pago', icon: CreditCard, connected: false },
-                    { id: 'inter', label: 'Banco Inter', icon: CreditCard, connected: false },
-                    { id: 'meta', label: 'Meta Pixel', icon: Globe, connected: false },
+                    { id: 'asaas', label: 'Asaas', icon: CreditCard, connected: !!asaasKey },
+                    { id: 'abacate', label: 'AbacatePay', icon: CreditCard, connected: false, emBreve: true },
+                    { id: 'mercado', label: 'Mercado Pago', icon: CreditCard, connected: !!mercadopagoKey },
+                    { id: 'inter', label: 'Banco Inter', icon: CreditCard, connected: false, emBreve: true },
+                    { id: 'meta', label: 'Meta Pixel', icon: Globe, connected: false, emBreve: true },
                     { id: 'webhooks', label: 'Webhooks', icon: Workflow, connected: true },
                     { id: 'agenda', label: 'Agendamento', icon: Sliders, connected: true },
                     { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, connected: false },
-                    { id: 'stripe', label: 'Stripe', icon: CreditCard, connected: false, emBreve: true },
+                    { id: 'stripe', label: 'Stripe', icon: CreditCard, connected: !!stripeKey },
                     { id: 'gdrive', label: 'Google Drive', icon: Folder, connected: false },
                     { id: 'figma', label: 'Figma', icon: Compass, connected: false, emBreve: true },
                     { id: 'slack', label: 'Slack', icon: MessageCircle, connected: false, emBreve: true },
@@ -1508,7 +1537,12 @@ export default function Settings() {
                     return (
                       <div
                         key={app.id}
-                        className={`p-4 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-2 relative min-h-[105px] ${
+                        onClick={() => {
+                          if (app.id === 'asaas' || app.id === 'mercado' || app.id === 'stripe') {
+                            setSelectedIntegration(app.id);
+                          }
+                        }}
+                        className={`p-4 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-2 relative min-h-[105px] cursor-pointer ${
                           app.connected
                             ? 'border-emerald-500/50 bg-emerald-500/5 text-emerald-400'
                             : 'border-zinc-900 bg-zinc-950/40 text-zinc-400 hover:text-zinc-200'
@@ -1516,7 +1550,7 @@ export default function Settings() {
                       >
                         {/* Connected green outline check */}
                         {app.connected && (
-                          <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center p-0.5">
+                          <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center p-0.5 animate-pulse-soft">
                             <Check className="h-2 w-2" />
                           </span>
                         )}
@@ -1551,6 +1585,123 @@ export default function Settings() {
 
               </CardContent>
             </Card>
+
+            {/* Modal de Integração de Pagamento */}
+            {selectedIntegration && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-none">
+                <div className="bg-[#0c0c0e] border border-[#1f1f23] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+                  <div className="p-6 border-b border-zinc-900 flex justify-between items-center">
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-[#e13a40]" />
+                      Configurar {selectedIntegration === 'asaas' ? 'Asaas' : selectedIntegration === 'mercado' ? 'Mercado Pago' : 'Stripe'}
+                    </h4>
+                    <button
+                      onClick={() => setSelectedIntegration(null)}
+                      className="text-zinc-500 hover:text-white text-xs font-semibold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-4">
+                    <div className="p-3 bg-zinc-950/60 border border-zinc-900 rounded-xl space-y-2 select-text">
+                      <p className="text-[10px] text-zinc-400 leading-relaxed font-body">
+                        {selectedIntegration === 'asaas' && 'Asaas é uma das principais plataformas de cobrança do Brasil. Insira seu Token de API de produção para habilitar cobranças via PIX reais.'}
+                        {selectedIntegration === 'mercado' && 'Mercado Pago permite receber pagamentos de forma instantânea via PIX e cartão. Insira seu Access Token de produção.'}
+                        {selectedIntegration === 'stripe' && 'Stripe é a maior plataforma de pagamentos do mundo, excelente para cartões de crédito. Insira sua Secret Key (sk_live_...).'}
+                      </p>
+                    </div>
+
+                    {/* API Key / Token input */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
+                        {selectedIntegration === 'asaas' ? 'Chave / Token de Acesso Asaas' : selectedIntegration === 'mercado' ? 'Access Token Mercado Pago' : 'Secret Key Stripe'}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="password"
+                          value={
+                            selectedIntegration === 'asaas' 
+                              ? asaasKey 
+                              : selectedIntegration === 'mercado' 
+                                ? mercadopagoKey 
+                                : stripeKey
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (selectedIntegration === 'asaas') setAsaasKey(val);
+                            else if (selectedIntegration === 'mercado') setMercadopagoKey(val);
+                            else if (selectedIntegration === 'stripe') setStripeKey(val);
+                          }}
+                          placeholder={selectedIntegration === 'stripe' ? 'sk_live_...' : 'Insira o token de API da sua conta'}
+                          className="w-full bg-[#101014] border border-zinc-800 text-xs rounded-lg p-2.5 outline-none text-white focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-10 font-mono transition-all pr-10"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Webhook Configuration Guide */}
+                    <div className="space-y-1.5 pt-2">
+                      <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
+                        URL de Webhook (Configure no seu Painel)
+                      </label>
+                      <p className="text-[9px] text-zinc-550 font-body leading-snug">
+                        Copie esta URL e cole na área de webhooks do seu gateway para notificar o NEXDASH em tempo real quando receber pagamentos.
+                      </p>
+                      <div className="flex gap-2 items-center select-text">
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${window.location.origin}/api/payments/webhook/${currentUser?.id || '1'}`}
+                          className="flex-1 bg-[#101014]/55 border border-zinc-900 text-[10px] rounded-lg p-2.5 text-zinc-400 outline-none font-mono h-9 select-all"
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/api/payments/webhook/${currentUser?.id || '1'}`);
+                            alert('URL copiada para a área de transferência!');
+                          }}
+                          className="px-3 h-9 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-zinc-950/40 border-t border-zinc-900 flex justify-between gap-3">
+                    <button
+                      onClick={() => {
+                        if (selectedIntegration === 'asaas') setAsaasKey('');
+                        else if (selectedIntegration === 'mercado') setMercadopagoKey('');
+                        else if (selectedIntegration === 'stripe') setStripeKey('');
+                        setSelectedIntegration(null);
+                        setTimeout(() => handleSave(), 100);
+                      }}
+                      className="px-4 py-2 border border-zinc-900 hover:border-red-500/20 bg-zinc-950 text-red-400 hover:bg-red-500/5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Remover
+                    </button>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedIntegration(null)}
+                        className="px-4 py-2 border border-zinc-900 bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedIntegration(null);
+                          setTimeout(() => handleSave(), 100);
+                        }}
+                        className="px-5 py-2 bg-[#e13a40] hover:bg-[#c92f35] text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-[#e13a40]/10"
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
         )}

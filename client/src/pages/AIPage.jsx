@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { apiFetch } from '../lib/api';
+import { apiFetch, apiUpload } from '../lib/api';
+import { compressImage } from '../lib/imageCompressor';
 
 export default function AIPage() {
   const location = useLocation();
@@ -920,49 +921,28 @@ export default function AIPage() {
                           id="admin-prompt-ref-image-input"
                           accept="image/*"
                           className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                const img = new window.Image();
-                                img.onload = () => {
-                                  // Downscale to max 1200px (Ultra-HD) to perfectly fit localStorage with stunning clarity
-                                  const MAX_WIDTH = 1200;
-                                  const MAX_HEIGHT = 1200;
-                                  let width = img.width;
-                                  let height = img.height;
-
-                                  if (width > height) {
-                                    if (width > MAX_WIDTH) {
-                                      height *= MAX_WIDTH / width;
-                                      width = MAX_WIDTH;
-                                    }
-                                  } else {
-                                    if (height > MAX_HEIGHT) {
-                                      width *= MAX_HEIGHT / height;
-                                      height = MAX_HEIGHT;
-                                    }
-                                  }
-
-                                  const canvas = document.createElement('canvas');
-                                  canvas.width = width;
-                                  canvas.height = height;
-                                  const ctx = canvas.getContext('2d');
-                                  // Enable image smoothing for high quality downscaling
-                                  ctx.imageSmoothingEnabled = true;
-                                  ctx.imageSmoothingQuality = 'high';
-                                  ctx.drawImage(img, 0, 0, width, height);
-
-                                  // Convert to compressed JPEG (quality 0.92) for absolute razor-sharp clarity
-                                  const compressedBase64 = canvas.toDataURL('image/jpeg', 0.92);
-                                  setNewPromptRefImage(compressedBase64);
-                                };
-                                img.src = event.target.result;
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
+                          onChange={async (e) => {
+                             const file = e.target.files?.[0];
+                             if (file) {
+                               try {
+                                 // Compress image to max 1200x1200px at 90% quality before upload
+                                 const compressedBlob = await compressImage(file, 1200, 1200, 0.9);
+                                 const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+                                 
+                                 // Upload compressed file to VPS
+                                 const res = await apiUpload('/api/settings/upload', compressedFile);
+                                 const data = await res.json();
+                                 if (data.success && data.url) {
+                                   setNewPromptRefImage(data.url);
+                                 } else {
+                                   throw new Error('Falha ao enviar imagem para o servidor.');
+                                 }
+                               } catch (err) {
+                                 console.error('[AIPage:Upload] Error uploading reference image:', err);
+                                 alert('Erro ao fazer upload da imagem: ' + err.message);
+                               }
+                             }
+                           }}
                         />
                         <svg className="h-6 w-6 text-zinc-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />

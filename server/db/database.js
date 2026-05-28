@@ -110,6 +110,31 @@ export function getUserDb(userId) {
     )
   `);
 
+  userDb.run(`
+    CREATE TABLE IF NOT EXISTS proposals (
+      id TEXT PRIMARY KEY,
+      projectName TEXT,
+      clientName TEXT,
+      clientPhone TEXT,
+      clientEmail TEXT,
+      amount REAL,
+      status TEXT DEFAULT 'draft',
+      description TEXT,
+      services TEXT,
+      subtotal REAL,
+      discount REAL,
+      payment_status TEXT DEFAULT 'PENDING',
+      payment_method TEXT,
+      signerName TEXT,
+      signerCpf TEXT,
+      signerRubrica TEXT,
+      signatureImage TEXT,
+      approvedDate TEXT,
+      createdAt TEXT,
+      contact_id TEXT
+    )
+  `);
+
   // Create local indexes
   userDb.run(`CREATE INDEX IF NOT EXISTS idx_contacts_stage ON contacts(current_stage)`);
   userDb.run(`CREATE INDEX IF NOT EXISTS idx_log_contact ON classification_log(contact_id)`);
@@ -129,6 +154,11 @@ export function getUserDb(userId) {
   userDb.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('keywords_em-producao', 'andamento, progresso, editando, fotos prontas?, prévia, fotos editadas, andamento?, status')`);
   userDb.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('keywords_entregue', 'ficou lindo, amei, incríveis, recebido, baixado, link, parabéns, sensacional')`);
   userDb.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('keywords_perdido', 'desisti, fechei com outro, não vou fazer, cancelado, sem verba, caro demais')`);
+  
+  // Default parameters for the active AI WhatsApp Auto-Responder (Chatbot)
+  userDb.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_responder_enabled', 'false')`);
+  userDb.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_responder_delay', '4')`);
+  userDb.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_responder_instructions', '# Manual de Atendimento e FAQ\n\n## Sobre a Empresa\n- **Nome da Empresa:** [Nome da sua Empresa]\n- **O que fazemos:** [Descreva seus principais serviços, ex: Design de Marcas, Fotografia, Consultoria]\n- **Nosso Tom de Voz:** Amigável, acolhedor, profissional e direto ao ponto.\n\n## Dúvidas Frequentes (FAQ)\n- **Qual é o preço médio?** [Solicite os detalhes do projeto do cliente educadamente antes de enviar um orçamento personalizado]\n- **Qual é o tempo de entrega?** [Ex: Nossos projetos levam em média 15 a 30 dias para serem entregues]\n- **Como funciona o agendamento?** [Nós enviamos um link para você escolher o melhor dia e horário na nossa agenda]\n\n## Regras de Conduta para a IA\n1. Sempre cumprimente o cliente pelo nome de forma simpática.\n2. Seja direto e evite parágrafos excessivamente longos.\n3. Se o cliente demonstrar interesse real em contratar, peça o e-mail/detalhes e informe que um link de proposta comercial personalizada será enviado pelo responsável.')`);
 
   // Local Save helper
   const saveDb = () => {
@@ -513,6 +543,80 @@ export function clearChatHistory(userId) {
   runSql(udb, `DELETE FROM messages`);
   runSql(udb, `DELETE FROM classification_log`);
   runSql(udb, `UPDATE contacts SET last_message = NULL, last_classified = NULL, previous_stage = NULL`);
+}
+
+// ─── Proposals Management ───────────────────────────────────────────────────
+
+export function getProposals(userId) {
+  const udb = getUserDb(userId);
+  const rows = queryAll(udb, `SELECT * FROM proposals ORDER BY createdAt DESC`);
+  return rows.map(r => ({
+    ...r,
+    services: r.services ? JSON.parse(r.services) : []
+  }));
+}
+
+export function getProposalById(userId, proposalId) {
+  const udb = getUserDb(userId);
+  const row = queryOne(udb, `SELECT * FROM proposals WHERE id = ?`, [proposalId]);
+  if (!row) return null;
+  return {
+    ...row,
+    services: row.services ? JSON.parse(row.services) : []
+  };
+}
+
+export function saveProposal(userId, proposal) {
+  const udb = getUserDb(userId);
+  const servicesJson = Array.isArray(proposal.services) 
+    ? JSON.stringify(proposal.services) 
+    : (proposal.services || '[]');
+
+  const existing = queryOne(udb, `SELECT id FROM proposals WHERE id = ?`, [proposal.id]);
+  
+  if (existing) {
+    runSql(udb, `
+      UPDATE proposals 
+      SET projectName = ?, clientName = ?, clientPhone = ?, clientEmail = ?, amount = ?, 
+          status = ?, description = ?, services = ?, subtotal = ?, discount = ?, 
+          payment_status = ?, payment_method = ?, signerName = ?, signerCpf = ?, 
+          signerRubrica = ?, signatureImage = ?, approvedDate = ?, contact_id = ?
+      WHERE id = ?
+    `, [
+      proposal.projectName, proposal.clientName, proposal.clientPhone || null, proposal.clientEmail || null,
+      proposal.amount, proposal.status || 'draft', proposal.description || null, servicesJson,
+      proposal.subtotal, proposal.discount, proposal.payment_status || 'PENDING', proposal.payment_method || null,
+      proposal.signerName || null, proposal.signerCpf || null, proposal.signerRubrica || null,
+      proposal.signatureImage || null, proposal.approvedDate || null, proposal.contact_id || null,
+      proposal.id
+    ]);
+  } else {
+    runSql(udb, `
+      INSERT INTO proposals (
+        id, projectName, clientName, clientPhone, clientEmail, amount, status, 
+        description, services, subtotal, discount, payment_status, payment_method, 
+        signerName, signerCpf, signerRubrica, signatureImage, approvedDate, createdAt, contact_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      proposal.id, proposal.projectName, proposal.clientName, proposal.clientPhone || null, proposal.clientEmail || null,
+      proposal.amount, proposal.status || 'draft', proposal.description || null, servicesJson,
+      proposal.subtotal, proposal.discount, proposal.payment_status || 'PENDING', proposal.payment_method || null,
+      proposal.signerName || null, proposal.signerCpf || null, proposal.signerRubrica || null,
+      proposal.signatureImage || null, proposal.approvedDate || null, proposal.createdAt || new Date().toISOString(),
+      proposal.contact_id || null
+    ]);
+  }
+  return getProposalById(userId, proposal.id);
+}
+
+export function deleteProposal(userId, proposalId) {
+  const udb = getUserDb(userId);
+  runSql(udb, `DELETE FROM proposals WHERE id = ?`, [proposalId]);
+}
+
+export function getLostReasons(userId) {
+  const udb = getUserDb(userId);
+  return queryAll(udb, `SELECT last_reason FROM contacts WHERE current_stage = 'perdido' AND last_reason IS NOT NULL AND last_reason != ''`);
 }
 
 export default { initDatabase, getUserDb, clearChatHistory };

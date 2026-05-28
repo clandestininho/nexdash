@@ -1100,6 +1100,85 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
                   </CardContent>
                 </Card>
 
+                {/* 1.5. AI Auto-Responder Chatbot Configuration */}
+                <Card className="bg-[#0c0c0e] border-[#1f1f23]">
+                  <CardHeader>
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
+                      <Sparkles className="h-4 w-4 text-[#e13a40] animate-pulse-soft" />
+                      🤖 Agente de Resposta Automática (Chatbot Ativo)
+                    </CardTitle>
+                    <CardDescription className="text-zinc-500 text-xs">
+                      Permita que o Agente de IA responda as mensagens dos seus clientes no WhatsApp simulando um atendente humano.
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-zinc-900 bg-zinc-950/40 gap-4">
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold text-white block">Status do Auto-Responder</span>
+                        <span className="text-[10px] text-zinc-500 block leading-relaxed">
+                          Se ativado, a IA responderá de forma inteligente todas as conversas novas que entrarem em contato no WhatsApp.
+                        </span>
+                      </div>
+                      
+                      {/* Interactive Switch */}
+                      <button
+                        type="button"
+                        onClick={() => handleSettingChange('ai_responder_enabled', settings.ai_responder_enabled === 'true' ? 'false' : 'true')}
+                        className={cn(
+                          "w-12 h-6 rounded-full p-1 transition-all duration-200 outline-none flex items-center shrink-0 cursor-pointer",
+                          settings.ai_responder_enabled === 'true' ? 'bg-[#e13a40]' : 'bg-zinc-800'
+                        )}
+                      >
+                        <span className={cn(
+                          "h-4 w-4 rounded-full bg-white transition-all shadow-md transform",
+                          settings.ai_responder_enabled === 'true' ? 'translate-x-6' : 'translate-x-0'
+                        )} />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-5">
+                      {/* Responding Delay (seconds) */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">
+                          Atraso na Resposta ({settings.ai_responder_delay || '4'} segundos)
+                        </label>
+                        <p className="text-[10px] text-zinc-500 font-body block leading-relaxed pb-1">
+                          Tempo em que a IA simula o status de <strong>"digitando..."</strong> no WhatsApp antes de disparar a resposta. Torna a conversa mais natural.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="2"
+                            max="15"
+                            step="1"
+                            value={settings.ai_responder_delay || '4'}
+                            onChange={(e) => handleSettingChange('ai_responder_delay', e.target.value)}
+                            className="flex-1 accent-[#e13a40] h-1 bg-zinc-900 rounded-lg cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* AI Instructions (Business Manual / FAQ) */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">
+                          Manual de Atendimento da Empresa (FAQ / Instruções)
+                        </label>
+                        <p className="text-[10px] text-zinc-500 font-body block leading-relaxed">
+                          Escreva o FAQ, preços de serviços, horários e termos da sua empresa. A IA responderá com base estritamente nestas instruções.
+                        </p>
+                        <textarea
+                          rows={12}
+                          value={settings.ai_responder_instructions || ''}
+                          onChange={(e) => handleSettingChange('ai_responder_instructions', e.target.value)}
+                          placeholder="Digite aqui as regras de negócio da sua empresa..."
+                          className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-3 text-xs text-white focus:border-[#e13a40] outline-none font-body leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* 2. AI API Keys Card */}
                 <Card className="bg-[#0c0c0e] border-[#1f1f23]">
                   <CardHeader>

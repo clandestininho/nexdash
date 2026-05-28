@@ -59,12 +59,35 @@ export default function ContactCard({ contact, index, onClick }) {
               </span>
             </div>
             
-            <button 
-              onClick={(e) => { e.stopPropagation(); onClick?.(contact); }}
-              className="text-zinc-500 hover:text-zinc-300 p-0.5 rounded transition-colors"
-            >
-              <MoreVertical className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* AI Decision Indicator Tag (Brains icon 🧠) */}
+              {contact.last_reason && (
+                <div className="relative group">
+                  <span className="cursor-help text-xs animate-pulse-soft">🧠</span>
+                  {/* Tooltip Popup */}
+                  <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 font-body pointer-events-none leading-relaxed select-text">
+                    <div className="flex items-center gap-1 mb-1.5 font-bold text-white uppercase tracking-wide text-[8px] text-[#e13a40]">
+                      <span>🧠 Copiloto de IA</span>
+                      {contact.confidence && (
+                        <span className="ml-auto font-mono text-zinc-500 lowercase">confiança: {Math.round(contact.confidence * 100)}%</span>
+                      )}
+                    </div>
+                    <p className="font-medium text-zinc-200 leading-normal">
+                      {contact.last_reason}
+                    </p>
+                    <div className="absolute top-full right-1 border-4 border-transparent border-t-zinc-950" />
+                    <div className="absolute top-full right-1 border-4 border-transparent border-t-zinc-800 -z-10 translate-y-[1px]" />
+                  </div>
+                </div>
+              )}
+
+              <button 
+                onClick={(e) => { e.stopPropagation(); onClick?.(contact); }}
+                className="text-zinc-500 hover:text-zinc-300 p-0.5 rounded transition-colors"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Card Details Body */}

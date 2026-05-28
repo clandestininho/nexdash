@@ -13,6 +13,7 @@ import whatsappRoutes from './routes/whatsapp.js';
 import createContactsRouter from './routes/contacts.js';
 import settingsRoutes from './routes/settings.js';
 import adminRoutes from './routes/admin.js';
+import proposalsRouter, { registerProposalsIo } from './routes/proposals.js';
 import { init as initWhatsAppClient } from './whatsapp/client.js';
 import { initDatabase } from './db/database.js';
 import { initScheduler } from './db/scheduler.js';
@@ -65,6 +66,8 @@ app.use('/api/whatsapp', whatsappRoutes(io));
 app.use('/api/contacts', createContactsRouter(io));
 app.use('/api/admin', adminRoutes);
 app.use('/api', settingsRoutes);
+app.use('/api', proposalsRouter);
+registerProposalsIo(io);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -87,6 +90,13 @@ io.on('connection', (socket) => {
     console.log(`[Socket.io] Client disconnected: ${socket.id} (${reason})`);
   });
 });
+
+// Serve static uploads
+const uploadsPath = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsPath));
 
 // ─── Static Files (Production) ──────────────────────────────────────────────
 

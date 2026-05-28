@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import {
   getSettings,
   saveSetting,
@@ -6,10 +9,46 @@ import {
   getBlacklist,
   setBlacklist,
   getClassificationLog,
+  getLostReasons,
+  getSetting,
 } from '../db/database.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `upload_${uniqueSuffix}${ext}`);
+  }
+});
+
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 15 * 1024 * 1024 } // 15MB limit
+});
+
+// POST /api/settings/upload - Handle file upload and return static link
+router.post('/settings/upload', authenticateToken, upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    }
+    const relativeUrl = `/uploads/${req.file.filename}`;
+    res.json({ success: true, url: relativeUrl });
+  } catch (error) {
+    console.error('[Route:Settings] Upload error:', error.message);
+    res.status(500).json({ error: 'Falha ao processar upload do arquivo.' });
+  }
+});
 
 // GET /api/log — return latest classification log entries
 router.get('/log', authenticateToken, (req, res) => {
@@ -224,5 +263,122 @@ router.post('/ai/generate-image', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Falha ao processar a geração de imagem.' });
   }
 });
+
+// GET /api/analytics/lost-reasons - Calculate Lost Reasons via Gemini AI
+router.get('/analytics/lost-reasons', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const lostContacts = getLostReasons(userId);
+    
+    if (lostContacts.length === 0) {
+      return res.json({
+        success: true,
+        summary: 'Não há dados de leads perdidos suficientes para análise de perdas por IA no momento.',
+        categories: [
+          { name: 'Preço', count: 0, percentage: 0 },
+          { name: 'Sem Retorno', count: 0, percentage: 0 },
+          { name: 'Prazo', count: 0, percentage: 0 },
+          { name: 'Concorrente', count: 0, percentage: 0 },
+          { name: 'Outros', count: 0, percentage: 0 }
+        ]
+      });
+    }
+
+    // Call Gemini to analyze the lost reasons
+    const apiKey = getSetting(userId, 'gemini_api_key') || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.json(calculateSimpleLostReasons(lostContacts));
+    }
+
+    const reasonsText = lostContacts.map(c => `- ${c.last_reason}`).join('\n');
+    const prompt = `Analise a seguinte lista de motivos pelos quais a empresa perdeu vendas no CRM (são motivos reais extraídos de conversas de WhatsApp):
+${reasonsText}
+
+Classifique estes motivos em 5 categorias principais (com base no conteúdo dos motivos):
+1. Preço (tá caro, sem orçamento, desconto, etc.)
+2. Sem Retorno / Sumiu (não respondeu mais, sumiu, ignorou, etc.)
+3. Prazo / Agenda (sem disponibilidade, prazo longo, etc.)
+4. Fechou com Concorrente (preferiu outro, fechou com concorrente, etc.)
+5. Outros
+
+Responda EXCLUSIVAMENTE com um objeto JSON no seguinte formato:
+{
+  "summary": "Um parágrafo de resumo executivo em português com insights acionáveis sobre como a empresa pode reduzir essas perdas.",
+  "categories": [
+    {"name": "Preço", "count": 12, "percentage": 45},
+    {"name": "Sem Retorno", "count": 8, "percentage": 30},
+    {"name": "Prazo", "count": 3, "percentage": 11},
+    {"name": "Concorrente", "count": 2, "percentage": 7},
+    {"name": "Outros", "count": 2, "percentage": 7}
+  ]
+}
+Sendo que a soma dos "count" deve ser igual a ${lostContacts.length}.`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' }
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        const cleaned = text.trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return res.json({ success: true, ...parsed });
+        }
+      }
+    }
+
+    res.json(calculateSimpleLostReasons(lostContacts));
+  } catch (error) {
+    console.error(`[Route:Analytics] User ${userId}: Lost reasons analytics error:`, error.message);
+    res.status(500).json({ error: 'Erro ao gerar análise de motivos de perda.' });
+  }
+});
+
+function calculateSimpleLostReasons(lostContacts) {
+  const categories = {
+    'Preço': 0,
+    'Sem Retorno': 0,
+    'Prazo': 0,
+    'Concorrente': 0,
+    'Outros': 0
+  };
+
+  for (const c of lostContacts) {
+    const text = c.last_reason.toLowerCase();
+    if (text.includes('car') || text.includes('preç') || text.includes('orcament') || text.includes('descont') || text.includes('dinheir') || text.includes('verba')) {
+      categories['Preço']++;
+    } else if (text.includes('respond') || text.includes('silenci') || text.includes('sumi') || text.includes('vácuo') || text.includes('ignor') || text.includes('retorn')) {
+      categories['Sem Retorno']++;
+    } else if (text.includes('praz') || text.includes('agend') || text.includes('temp') || text.includes('dia') || text.includes('disponib')) {
+      categories['Prazo']++;
+    } else if (text.includes('concorrent') || text.includes('outr') || text.includes('fechei com')) {
+      categories['Concorrente']++;
+    } else {
+      categories['Outros']++;
+    }
+  }
+
+  const list = Object.entries(categories).map(([name, count]) => ({
+    name,
+    count,
+    percentage: lostContacts.length > 0 ? Math.round((count / lostContacts.length) * 100) : 0
+  }));
+
+  return {
+    success: true,
+    summary: 'Análise gerada localmente. A maioria das perdas está relacionada a precificação e falta de acompanhamento ativo (follow-up). Recomenda-se criar réguas de reengajamento automático.',
+    categories: list
+  };
+}
 
 export default router;

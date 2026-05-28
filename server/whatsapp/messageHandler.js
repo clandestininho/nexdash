@@ -118,6 +118,14 @@ async function handleMessage(uId, message, sock) {
     return;
   }
 
+  // Run active AI auto-responder if enabled and message is from contact (not me)
+  const responderEnabled = getSetting(uId, 'ai_responder_enabled') === 'true';
+  if (responderEnabled && fromMe === 0) {
+    runAutoResponder(uId, jid, text, sock).catch((err) => {
+      console.error(`[AutoResponder] User ${uId}: Error in auto-responder:`, err.message);
+    });
+  }
+
   // Check cooldown
   const cooldownMinutes = parseInt(getSetting(uId, 'cooldown_minutes') || '30', 10);
   if (contact.last_classified) {
@@ -215,5 +223,123 @@ async function handleMessage(uId, message, sock) {
     } catch (err) {
       console.error(`[MessageHandler] User ${uId}: Failed to update last_classified:`, err.message);
     }
+  }
+}
+
+/**
+ * Run the active AI Auto-Responder Chatbot using Gemini 2.5 Flash.
+ */
+async function runAutoResponder(uId, jid, text, sock) {
+  try {
+    const apiKey = getSetting(uId, 'gemini_api_key') || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.warn(`[AutoResponder] User ${uId}: No Gemini API key configured. Skipping response.`);
+      return;
+    }
+
+    // Get delay in seconds
+    const delaySec = parseInt(getSetting(uId, 'ai_responder_delay') || '4', 10);
+
+    // Update presence to composing (typing status)
+    try {
+      await sock.sendPresenceUpdate('composing', jid);
+    } catch (e) {
+      console.warn(`[AutoResponder] User ${uId}: Failed to send composing status:`, e.message);
+    }
+
+    // Wait for the configured delay
+    await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+
+    // Get instructions and contact messages for conversation context
+    const instructions = getSetting(uId, 'ai_responder_instructions') || '';
+    const companyName = getSetting(uId, 'profile_empresa') || 'NEXDASH';
+    const recentMessages = getMessages(uId, jid, 10);
+    const conversationContext = recentMessages
+      .map((msg) => `${msg.from_me ? 'Atendente' : 'Cliente'}: ${msg.content}`)
+      .join('\n');
+
+    const systemPrompt = `Você é o assistente virtual inteligente da empresa "${companyName}".
+Seu objetivo é atender o cliente de forma extremamente natural, prestativa e amigável no WhatsApp, seguindo estritamente as instruções e FAQ abaixo.
+
+## Manual de Atendimento da Empresa:
+${instructions}
+
+## Regras Importantes:
+1. Responda apenas com a mensagem a ser enviada ao cliente. NÃO adicione prefixos como "Atendente:", "Resposta:" ou aspas no início/fim.
+2. Seja natural, simpático, use emojis de forma moderada e evite respostas excessivamente formais.
+3. Não invente informações que não estejam no manual. Se não souber responder algo sobre a empresa, peça desculpas de forma amigável e diga que irá transferir para um atendente humano.
+4. Escreva respostas relativamente curtas e fáceis de ler (com quebras de linha amigáveis).
+
+## Histórico Recente da Conversa:
+${conversationContext}
+
+Responda à última mensagem do Cliente de forma natural e direta.`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: systemPrompt }]
+          }
+        ]
+      })
+    });
+
+    // Update presence to paused
+    try {
+      await sock.sendPresenceUpdate('paused', jid);
+    } catch (e) {}
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API returned status ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    let replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!replyText || !replyText.trim()) {
+      console.warn(`[AutoResponder] User ${uId}: Empty reply from Gemini.`);
+      return;
+    }
+
+    replyText = replyText.trim();
+
+    // Send the message via WhatsApp
+    const sentMsg = await sock.sendMessage(jid, { text: replyText });
+
+    // Save to database
+    const timestamp = new Date().toISOString();
+    const messageData = {
+      id: sentMsg.key.id,
+      contact_id: jid,
+      content: replyText,
+      from_me: 1,
+      timestamp,
+    };
+    saveMessage(uId, messageData);
+
+    // Upsert contact
+    upsertContact(uId, {
+      id: jid,
+      last_message: replyText,
+      last_activity: timestamp,
+    });
+
+    // Emit updates
+    if (io) {
+      io.to(`user_${uId}`).emit('message:new', messageData);
+      const updatedContact = getContactById(uId, jid);
+      if (updatedContact) {
+        io.to(`user_${uId}`).emit('contact:updated', updatedContact);
+      }
+    }
+
+    console.log(`[AutoResponder] User ${uId}: Replied to ${jid} successfully.`);
+  } catch (err) {
+    console.error(`[AutoResponder] User ${uId}: Error generating/sending AI response:`, err.message);
   }
 }
