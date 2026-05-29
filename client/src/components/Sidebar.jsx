@@ -30,8 +30,10 @@ import {
 import { cn } from '../lib/utils';
 import { socket, disconnectSocket } from '../lib/socket';
 import { isRouteLocked, PLAN_DETAILS } from '../lib/plans';
+import { useTranslation } from '../lib/i18n';
 
 export default function Sidebar() {
+  const { lang, t } = useTranslation();
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [userName, setUserName] = useState('Gleison');
   const [userEmail, setUserEmail] = useState('gleisonsax@gmail.com');
@@ -215,7 +217,7 @@ export default function Sidebar() {
           className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] py-2.5 px-4 text-sm font-semibold text-white shadow-md shadow-[#e13a40]/20 transition-all duration-200"
         >
           <Plus className="h-4 w-4" />
-          <span>Nova Venda</span>
+          <span>{t('new_sale')}</span>
         </button>
       </div>
 
@@ -224,10 +226,10 @@ export default function Sidebar() {
         
         {/* Main Section */}
         <div className="space-y-1">
-          {renderLink('/dashboard', 'Dashboard', LayoutDashboard)}
-          {renderLink('/', 'Clientes', Users)}
-          {renderLink('/pipelines', 'Pipelines', GitFork)}
-          {renderLink('/ai/designer', 'Ferramentas', Sparkles)}
+          {renderLink('/dashboard', t('dashboard'), LayoutDashboard)}
+          {renderLink('/', t('clients'), Users)}
+          {renderLink('/pipelines', t('pipelines'), GitFork)}
+          {renderLink('/ai/designer', t('tools'), Sparkles)}
         </div>
 
         {/* Agentes IA Section */}
@@ -236,16 +238,16 @@ export default function Sidebar() {
             onClick={() => toggleMenu('aiAgents')}
             className="w-full flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition-colors duration-150"
           >
-            <span>Agentes IA</span>
+            <span>{t('ai_agents')}</span>
             {openMenus.aiAgents ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
           
           {openMenus.aiAgents && (
             <div className="ml-4 pl-4 border-l border-[#1f1f1f] space-y-0.5 mt-0.5">
-              {renderLink('/ai', 'Visão geral', Bot, null, true)}
-              {renderLink('/ai/analista', 'Analista', Bot, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
-              {renderLink('/ai/copywriter', 'Copywriter', Bot, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
-              {renderLink('/ai/designer', 'Designer', Bot, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
+              {renderLink('/ai', t('overview'), Bot, null, true)}
+              {renderLink('/ai/analista', t('analyst'), Bot, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
+              {renderLink('/ai/copywriter', t('copywriter'), Bot, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
+              {renderLink('/ai/designer', t('designer'), Bot, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
             </div>
           )}
         </div>
@@ -256,14 +258,14 @@ export default function Sidebar() {
             onClick={() => toggleMenu('tasks')}
             className="w-full flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition-colors duration-150"
           >
-            <span>Tarefas</span>
+            <span>{t('tasks')}</span>
             {openMenus.tasks ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
           
           {openMenus.tasks && (
             <div className="ml-4 pl-4 border-l border-[#1f1f1f] space-y-0.5 mt-0.5">
-              {renderLink('/tasks/board', 'Quadro', CheckSquare, null, true)}
-              {renderLink('/tasks/content', 'Conteúdos', CheckSquare, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
+              {renderLink('/tasks/board', t('board'), CheckSquare, null, true)}
+              {renderLink('/tasks/content', t('content'), CheckSquare, <span className="text-[9px] font-bold text-orange-500 bg-orange-500/10 px-1 py-0.2 rounded border border-orange-500/20">BETA</span>, true)}
             </div>
           )}
         </div>
@@ -271,15 +273,15 @@ export default function Sidebar() {
         {/* Dynamic & Financial Section */}
         <div className="space-y-1 pt-1">
           <div className="text-xs font-semibold text-zinc-500 px-3 py-1.5 uppercase tracking-wider">
-            Gestão & Vendas
+            {t('management_sales')}
           </div>
-          {renderLink('/agenda', 'Agenda', Calendar)}
-          {renderLink('/finance', 'Financeiro', DollarSign)}
-          {renderLink('/services', 'Serviços', Briefcase)}
-          {renderLink('/orçamentos', 'Orçamentos', FileText)}
-          {renderLink('/briefings', 'Briefings', ClipboardList)}
-          {renderLink('/pages', 'Páginas', Globe)}
-          {renderLink('/equipe', 'Equipe', Users)}
+          {renderLink('/agenda', t('agenda'), Calendar)}
+          {renderLink('/finance', t('finance'), DollarSign)}
+          {renderLink('/services', t('services'), Briefcase)}
+          {renderLink('/orçamentos', t('proposals'), FileText)}
+          {renderLink('/briefings', t('briefings'), ClipboardList)}
+          {renderLink('/pages', t('pages'), Globe)}
+          {renderLink('/equipe', t('team'), Users)}
         </div>
 
         {/* WhatsApp Submenu section matching Screenshot 3 */}
@@ -288,17 +290,17 @@ export default function Sidebar() {
             onClick={() => toggleMenu('whatsapp')}
             className="w-full flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition-colors duration-150"
           >
-            <span>WhatsApp</span>
+            <span>{t('whatsapp')}</span>
             {openMenus.whatsapp ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
           
           {openMenus.whatsapp && (
             <div className="ml-4 pl-4 border-l border-[#1f1f1f] space-y-0.5 mt-0.5">
-              {renderLink('/whatsapp/conversas', 'Conversas', MessageSquare, null, true)}
-              {renderLink('/whatsapp/atendentes', 'Atendentes', Users, null, true)}
-              {renderLink('/whatsapp/automacoes', 'Automações', Settings, null, true)}
-              {renderLink('/whatsapp/grupos', 'Monitor de Grupos', Layers, null, true)}
-              {renderLink('/connect', 'Conexão Número', Radio, 
+              {renderLink('/whatsapp/conversas', t('chats'), MessageSquare, null, true)}
+              {renderLink('/whatsapp/atendentes', t('attendants'), Users, null, true)}
+              {renderLink('/whatsapp/automacoes', t('automations'), Settings, null, true)}
+              {renderLink('/whatsapp/grupos', t('group_monitor'), Layers, null, true)}
+              {renderLink('/connect', t('number_connection'), Radio, 
                 <span className={cn(
                   "h-1.5 w-1.5 rounded-full",
                   isConnected ? "bg-emerald-500 animate-pulse" : "bg-rose-500 animate-pulse"
@@ -311,11 +313,11 @@ export default function Sidebar() {
         {/* Technical/Connection Info */}
         <div className="space-y-1 pt-1">
           <div className="text-xs font-semibold text-zinc-500 px-3 py-1.5 uppercase tracking-wider">
-            Sistema
+            {t('system')}
           </div>
-          {renderLink('/log', 'Log de Classificações', ClipboardList)}
-          {renderLink('/settings?tab=aprendizagem', 'Aprendizagem', GraduationCap)}
-          {renderLink('/settings', 'Configurações', Settings)}
+          {renderLink('/log', t('classification_logs'), ClipboardList)}
+          {renderLink('/settings?tab=aprendizagem', t('learning'), GraduationCap)}
+          {renderLink('/settings', t('settings'), Settings)}
         </div>
 
       </div>
@@ -325,7 +327,7 @@ export default function Sidebar() {
         {currentUser?.plan === 'next' ? (
           <div className="flex items-center justify-center gap-1.5 text-xs font-black text-[#06b6d4] bg-[#06b6d4]/5 border border-[#06b6d4]/20 py-2.5 px-3 rounded-lg animate-pulse-soft">
             <Rocket className="h-3.5 w-3.5 fill-[#06b6d4]/10" />
-            <span>ACESSO TOTAL LIBERADO</span>
+            <span>{t('all_access_released')}</span>
           </div>
         ) : (
           <button 
@@ -333,7 +335,7 @@ export default function Sidebar() {
             className="w-full flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 py-2.5 px-3 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-all duration-200 cursor-pointer"
           >
             <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-            <span>{currentUser?.plan === 'trial' ? 'Assinar Plano' : 'Fazer Upgrade'}</span>
+            <span>{currentUser?.plan === 'trial' ? t('subscribe_plan') : t('upgrade_plan')}</span>
           </button>
         )}
       </div>
@@ -352,7 +354,7 @@ export default function Sidebar() {
         
         <button
           onClick={handleLogout}
-          title="Sair da conta"
+          title={t('log_out')}
           className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-900 transition-all"
         >
           <LogOut className="h-4 w-4" />

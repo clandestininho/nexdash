@@ -4,8 +4,11 @@ import { apiFetch } from '../lib/api';
 import { useSocket } from '../hooks/useSocket';
 import { getStageColor, getStageLabel } from '../lib/stages';
 import { formatRelativeTime } from '../lib/utils';
+import { useTranslation } from '../lib/i18n';
 
 export default function Header() {
+  const { lang, t, setLanguage } = useTranslation();
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [userName, setUserName] = useState('Gleison');
   const [aiCredits, setAiCredits] = useState(150);
   const [goalAchieved, setGoalAchieved] = useState(0);
@@ -163,7 +166,7 @@ export default function Header() {
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Buscar clientes, leads ou propostas..."
+            placeholder={t('search_placeholder')}
             className="w-full bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg pl-9 pr-12 py-2 text-xs text-zinc-300 placeholder-zinc-500 outline-none focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 transition-all font-body"
           />
           <div className="absolute right-3 top-2.5 flex items-center gap-0.5 px-1.5 py-0.2 rounded border border-[#1f1f1f] bg-[#121212] text-[9px] font-semibold text-zinc-500 select-none">
@@ -179,7 +182,7 @@ export default function Header() {
         {/* Goal Status Progress Bar */}
         <div className="hidden lg:flex flex-col w-48 space-y-1">
           <div className="flex items-center justify-between text-[10px] text-zinc-400 font-semibold font-body">
-            <span>Meta de Receita</span>
+            <span>{t('revenue_goal')}</span>
             <span className="text-zinc-500">{currencySymbol} {goalAchieved.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {currencySymbol} {goalTarget.toLocaleString('pt-BR')}</span>
           </div>
           <div className="h-1.5 w-full bg-[#1a1a1a] rounded-full overflow-hidden border border-[#1f1f1f]">
@@ -196,7 +199,7 @@ export default function Header() {
         {/* AI Credit Counter */}
         <div className="flex items-center gap-1.5 bg-[#e13a40]/10 border border-[#e13a40]/20 px-2.5 py-1 rounded-full text-xs font-semibold text-[#e13a40] cursor-pointer hover:bg-[#e13a40]/25 transition-all">
           <Sparkles className="h-3.5 w-3.5" />
-          <span className="text-[10px] tracking-wider uppercase font-body">{aiCredits} CRÉDITOS IA</span>
+          <span className="text-[10px] tracking-wider uppercase font-body">{aiCredits} {t('ai_credits')}</span>
         </div>
 
         {/* Notification Bell with interactive dropdown */}
@@ -242,7 +245,7 @@ export default function Header() {
                     className="text-[10px] font-bold text-[#e13a40] hover:text-red-400 flex items-center gap-0.5 hover:underline"
                   >
                     <Check className="h-3 w-3" />
-                    <span>Lidas</span>
+                    <span>{t('read_notifications')}</span>
                   </button>
                 )}
               </div>
@@ -312,7 +315,7 @@ export default function Header() {
                   /* Empty state */
                   <div className="py-12 text-center flex flex-col items-center justify-center space-y-2 opacity-50">
                     <AlertCircle className="h-6 w-6 text-zinc-650" />
-                    <span className="text-[11px] text-zinc-500 font-body">Nenhuma triagem recente no funil</span>
+                    <span className="text-[11px] text-zinc-500 font-body">{t('no_recent_notifications')}</span>
                   </div>
                 )}
               </div>
@@ -324,7 +327,7 @@ export default function Header() {
                   onClick={() => setShowNotifications(false)}
                   className="text-[10px] text-zinc-400 hover:text-white font-bold tracking-wide uppercase hover:underline block font-body"
                 >
-                  Ver Painel de Logs →
+                  {t('view_logs')}
                 </a>
               </div>
 
@@ -333,17 +336,59 @@ export default function Header() {
         </div>
 
         {/* Language selector */}
-        <button className="flex items-center gap-1 p-1 px-2 rounded-lg hover:bg-[#1a1a1a] text-zinc-400 hover:text-zinc-100 text-xs font-medium transition-all">
-          <span className="mr-1">🇧🇷</span>
-          <span className="text-[10px]">PT</span>
-          <ChevronDown className="h-3 w-3" />
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowLangDropdown(!showLangDropdown)}
+            className="flex items-center gap-1.5 p-1 px-2 rounded-lg hover:bg-[#1a1a1a] text-zinc-400 hover:text-zinc-100 text-xs font-medium transition-all"
+          >
+            <span className="mr-0.5">{lang === 'EN' ? '🇺🇸' : lang === 'ES' ? '🇪🇸' : '🇧🇷'}</span>
+            <span className="text-[10px] font-bold">{lang}</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
+          
+          {showLangDropdown && (
+            <div className="absolute right-0 mt-2 w-32 bg-[#0c0c0e]/95 border border-[#1f1f23] rounded-xl shadow-2xl backdrop-blur-md z-50 overflow-hidden animate-slide-down">
+              <div className="py-1 divide-y divide-[#1f1f23]/30">
+                <button
+                  onClick={() => {
+                    setLanguage('PT');
+                    setShowLangDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors ${lang === 'PT' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  <span>🇧🇷</span>
+                  <span>Português</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setLanguage('EN');
+                    setShowLangDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors ${lang === 'EN' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  <span>🇺🇸</span>
+                  <span>English</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setLanguage('ES');
+                    setShowLangDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors ${lang === 'ES' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  <span>🇪🇸</span>
+                  <span>Español</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Theme toggle */}
         <button 
           onClick={toggleTheme}
           className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1a1a] transition-all"
-          title={theme === 'dark' ? "Mudar para Tema Claro" : "Mudar para Tema Escuro"}
+          title={theme === 'dark' ? t('change_light_theme') : t('change_dark_theme')}
         >
           {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4 text-amber-500" />}
         </button>

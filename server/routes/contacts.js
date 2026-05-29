@@ -64,6 +64,7 @@ export default function createContactsRouter(io) {
       const pageButtonText = getSetting(targetUserId, 'page_button_text') || 'Enviar Cadastro';
       const pageSecondaryBtnText = getSetting(targetUserId, 'page_secondary_btn_text') || 'Ver Portfólio';
       const pageHeroImage = getSetting(targetUserId, 'page_hero_image') || '';
+      const pagePrimaryColor = getSetting(targetUserId, 'page_primary_color') || '#e13a40';
 
       res.json({
         companyName,
@@ -76,7 +77,8 @@ export default function createContactsRouter(io) {
         pageDescText,
         pageButtonText,
         pageSecondaryBtnText,
-        pageHeroImage
+        pageHeroImage,
+        pagePrimaryColor
       });
     } catch (error) {
       console.error(`[Route:Contacts] Public Info Error:`, error.message);

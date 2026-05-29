@@ -39,6 +39,7 @@ export default function VisualEditor() {
   
   // Custom logo image or hero placeholder
   const [heroImage, setHeroImage] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('#e13a40');
   const [isSaving, setIsSaving] = useState(false);
 
   // Load existing settings from SQLite on mount
@@ -55,6 +56,7 @@ export default function VisualEditor() {
           if (data.page_button_text) setButtonText(data.page_button_text);
           if (data.page_secondary_btn_text) setSecondaryBtnText(data.page_secondary_btn_text);
           if (data.page_hero_image) setHeroImage(data.page_hero_image);
+          if (data.page_primary_color) setPrimaryColor(data.page_primary_color);
         }
       } catch (err) {
         console.error('[VisualEditor] Error loading saved settings:', err);
@@ -81,6 +83,7 @@ export default function VisualEditor() {
     setButtonText('Começar Agora');
     setSecondaryBtnText('Ver Portfólio');
     setHeroImage('');
+    setPrimaryColor('#e13a40');
   };
 
   const handleSave = async () => {
@@ -93,7 +96,8 @@ export default function VisualEditor() {
         descText,
         buttonText,
         secondaryBtnText,
-        heroImage
+        heroImage,
+        primaryColor
       };
       localStorage.setItem('dgflow_custom_page_data', JSON.stringify(pageData));
 
@@ -108,7 +112,8 @@ export default function VisualEditor() {
           page_desc_text: descText,
           page_button_text: buttonText,
           page_secondary_btn_text: secondaryBtnText,
-          page_hero_image: heroImage
+          page_hero_image: heroImage,
+          page_primary_color: primaryColor
         })
       });
 
@@ -351,7 +356,14 @@ export default function VisualEditor() {
                   {mainTitle.toUpperCase()}
                 </span>
                 
-                <button className="px-3.5 py-1.5 rounded-lg bg-[#e13a40]/10 border border-[#e13a40]/25 text-[#e13a40] text-[9px] font-bold uppercase transition-all hover:bg-[#e13a40]/20">
+                <button 
+                  className="px-3.5 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all"
+                  style={{
+                    backgroundColor: `${primaryColor}1a`,
+                    borderColor: `${primaryColor}40`,
+                    color: primaryColor
+                  }}
+                >
                   Contato
                 </button>
               </div>
@@ -364,7 +376,14 @@ export default function VisualEditor() {
                   <div className="space-y-2.5">
                     
                     {/* Badge text */}
-                    <span className="text-[9px] font-extrabold text-[#e13a40] tracking-widest uppercase block bg-[#e13a40]/10 px-2 py-0.5 rounded border border-[#e13a40]/15 w-fit">
+                    <span 
+                      className="text-[9px] font-extrabold tracking-widest uppercase block px-2 py-0.5 rounded border w-fit"
+                      style={{
+                        color: primaryColor,
+                        backgroundColor: `${primaryColor}1a`,
+                        borderColor: `${primaryColor}26`
+                      }}
+                    >
                       {badgeText}
                     </span>
 
@@ -382,7 +401,13 @@ export default function VisualEditor() {
 
                   {/* Actions buttons */}
                   <div className="flex items-center gap-2.5 pt-2">
-                    <button className="px-4 py-2 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white text-[10px] font-extrabold shadow-md shadow-[#e13a40]/15 uppercase tracking-wider transition-all">
+                    <button 
+                      className="px-4 py-2 rounded-lg text-white text-[10px] font-extrabold shadow-md uppercase tracking-wider transition-all"
+                      style={{
+                        backgroundColor: primaryColor,
+                        boxShadow: `0 4px 12px ${primaryColor}26`
+                      }}
+                    >
                       {buttonText} →
                     </button>
                     <button className="px-4 py-2 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:bg-zinc-900 text-zinc-300 text-[10px] font-extrabold uppercase tracking-wider transition-all">
@@ -587,8 +612,8 @@ export default function VisualEditor() {
                     {['#e13a40', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'].map(c => (
                       <button
                         key={c}
-                        onClick={() => alert(`A cor de destaque padrão é o vermelho corporativo #e13a40!`)}
-                        className="h-6 w-6 rounded-full border border-zinc-850 cursor-pointer transition-transform hover:scale-110"
+                        onClick={() => setPrimaryColor(c)}
+                        className={`h-6 w-6 rounded-full border cursor-pointer transition-all hover:scale-110 ${primaryColor === c ? 'ring-2 ring-white ring-offset-2 ring-offset-[#0c0c0e] border-white' : 'border-zinc-850'}`}
                         style={{ backgroundColor: c }}
                       />
                     ))}

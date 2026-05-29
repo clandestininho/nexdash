@@ -50,20 +50,43 @@ export default function Finance() {
   const [profileMoeda, setProfileMoeda] = useState('BRL');
 
   useEffect(() => {
-    const fetchMoeda = async () => {
+    const fetchSettings = async () => {
       try {
         const res = await apiFetch('/api/settings');
         if (res.ok) {
           const settings = await res.json();
-          if (settings && settings.profile_moeda) {
-            setProfileMoeda(settings.profile_moeda);
+          if (settings) {
+            if (settings.profile_moeda) {
+              setProfileMoeda(settings.profile_moeda);
+            }
+            if (settings.pix_key_type) {
+              setPixKeyType(settings.pix_key_type);
+            }
+            if (settings.pix_key_val) {
+              setPixKeyVal(settings.pix_key_val);
+            }
+            if (settings.pix_beneficiary) {
+              setPixBeneficiary(settings.pix_beneficiary);
+            }
+            if (settings.pix_city) {
+              setPixCity(settings.pix_city);
+            }
+            if (settings.pix_display_rules) {
+              setPixDisplayRules(settings.pix_display_rules);
+            }
+            if (settings.pix_custom_msg) {
+              setPixCustomMsg(settings.pix_custom_msg);
+            }
+            if (settings.pix_active_state !== undefined) {
+              setPixActiveState(settings.pix_active_state === 'true');
+            }
           }
         }
       } catch (err) {
-        console.error('Error fetching settings currency:', err);
+        console.error('Error fetching settings in Finance:', err);
       }
     };
-    fetchMoeda();
+    fetchSettings();
   }, []);
 
   const currencySymbol = profileMoeda === 'EUR' ? '€' : profileMoeda === 'USD' ? '$' : 'R$';
@@ -340,6 +363,32 @@ export default function Finance() {
     window.dispatchEvent(new CustomEvent('dgflow_transactions_updated'));
   };
 
+  const handleSavePix = async () => {
+    try {
+      const res = await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pix_key_type: pixKeyType,
+          pix_key_val: pixKeyVal,
+          pix_beneficiary: pixBeneficiary,
+          pix_city: pixCity,
+          pix_display_rules: pixDisplayRules,
+          pix_custom_msg: pixCustomMsg,
+          pix_active_state: pixActiveState ? 'true' : 'false'
+        })
+      });
+      if (res.ok) {
+        alert("Configurações de PIX salvas com sucesso!");
+      } else {
+        alert("Erro ao salvar configurações de PIX.");
+      }
+    } catch (err) {
+      console.error('Erro ao salvar PIX:', err);
+      alert("Erro ao conectar com o servidor.");
+    }
+  };
+
   const handleAddVenda = (e) => {
     e.preventDefault();
     if (!vendaClient || !vendaAmount || !vendaDate || !vendaDesc) {
@@ -479,6 +528,18 @@ export default function Finance() {
     .reduce((sum, t) => sum + t.amount, 0);
 
   const lucroLiquido = totalReceitas - totalDespesas;
+
+  // Filter recurring transactions
+  const recurringTxs = transactions.filter(t => t.category === 'Assinaturas' || t.mode === 'Recorrente');
+  
+  // Unique clients count in recurring
+  const uniqueRecurringClients = [...new Set(recurringTxs.map(t => t.client))].length;
+  
+  // MRR: sum of recurring transactions
+  const mrrRecorrente = recurringTxs.reduce((sum, t) => sum + t.amount, 0);
+  
+  // LTV Estimado: MRR * 12
+  const ltvEstimado = mrrRecorrente * 12;
 
   // Filter list
   const filteredTxs = transactions.filter(t => {
@@ -1075,7 +1136,7 @@ export default function Finance() {
 
             <div className="pt-2">
               <button 
-                onClick={() => alert("Configurações de PIX salvas!")}
+                onClick={handleSavePix}
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-600 to-[#e13a40] hover:from-orange-500 hover:to-[#c52f34] text-white text-xs font-semibold shadow-sm transition-all"
               >
                 Salvar Chave PIX
@@ -1092,7 +1153,7 @@ export default function Finance() {
             <Card className="bg-[#121212] border-[#1f1f1f] text-white">
               <CardContent className="pt-4 space-y-1">
                 <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-bold">Assinaturas Ativas</span>
-                <div className="text-2xl font-bold text-white">12 clientes</div>
+                <div className="text-2xl font-bold text-white">{uniqueRecurringClients} {uniqueRecurringClients === 1 ? 'cliente' : 'clientes'}</div>
                 <p className="text-[9px] text-zinc-500">Contratos mensais ativos</p>
               </CardContent>
             </Card>
@@ -1100,7 +1161,7 @@ export default function Finance() {
             <Card className="bg-[#121212] border-[#1f1f1f] text-white">
               <CardContent className="pt-4 space-y-1">
                 <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-bold">MRR Recorrente</span>
-                <div className="text-2xl font-bold text-emerald-400">{currencySymbol} 8.450,00</div>
+                <div className="text-2xl font-bold text-emerald-400">{currencySymbol} {mrrRecorrente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                 <p className="text-[9px] text-zinc-500">Faturamento recorrente mensal</p>
               </CardContent>
             </Card>
@@ -1108,7 +1169,7 @@ export default function Finance() {
             <Card className="bg-[#121212] border-[#1f1f1f] text-white">
               <CardContent className="pt-4 space-y-1">
                 <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-bold">LTV Estimado</span>
-                <div className="text-2xl font-bold text-white">{currencySymbol} 10.140,00</div>
+                <div className="text-2xl font-bold text-white">{currencySymbol} {ltvEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                 <p className="text-[9px] text-zinc-500">Valor médio de ciclo anual</p>
               </CardContent>
             </Card>
@@ -1139,24 +1200,29 @@ export default function Finance() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-[#1f1f1f]/50 hover:bg-[#1a1a1a]/30">
-                    <td className="p-3 pl-6 font-semibold text-white">Marina Sousa</td>
-                    <td className="p-3 text-zinc-400">Mensal (SaaS)</td>
-                    <td className="p-3 font-mono text-zinc-500">2026-06-20</td>
-                    <td className="p-3 text-right font-bold text-white font-mono">{currencySymbol} 1.500,00</td>
-                    <td className="p-3 pr-6 text-center">
-                      <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px]">ATIVO</span>
-                    </td>
-                  </tr>
-                  <tr className="border-b border-[#1f1f1f]/50 hover:bg-[#1a1a1a]/30">
-                    <td className="p-3 pl-6 font-semibold text-white">Construtora Pernambuco</td>
-                    <td className="p-3 text-zinc-400">Semestral</td>
-                    <td className="p-3 font-mono text-zinc-500">2026-11-15</td>
-                    <td className="p-3 text-right font-bold text-white font-mono">{currencySymbol} 4.000,00</td>
-                    <td className="p-3 pr-6 text-center">
-                      <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px]">ATIVO</span>
-                    </td>
-                  </tr>
+                  {recurringTxs.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="text-center py-10 text-zinc-600 font-body">Nenhuma assinatura recorrente ativa.</td>
+                    </tr>
+                  ) : (
+                    recurringTxs.map(tx => (
+                      <tr key={tx.id} className="border-b border-[#1f1f1f]/50 hover:bg-[#1a1a1a]/30">
+                        <td className="p-3 pl-6 font-semibold text-white">{tx.client}</td>
+                        <td className="p-3 text-zinc-400">{tx.category || 'Mensal'}</td>
+                        <td className="p-3 font-mono text-zinc-500">{tx.date}</td>
+                        <td className="p-3 text-right font-bold text-white font-mono">{currencySymbol} {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 pr-6 text-center">
+                          <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                            tx.status === 'received' || tx.status === 'paid'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                          }`}>
+                            {tx.status === 'received' || tx.status === 'paid' ? 'ATIVO' : 'PENDENTE'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </CardContent>
@@ -1190,11 +1256,11 @@ export default function Finance() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-2.5 rounded border border-[#1f1f1f] bg-[#1a1a1a]/30">
                     <span className="text-xs font-semibold text-white">Caixa Principal (Digital)</span>
-                    <span className="text-xs font-bold text-emerald-400 font-mono">{currencySymbol} 9.500,00</span>
+                    <span className="text-xs font-bold text-emerald-400 font-mono">{currencySymbol} {lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex items-center justify-between p-2.5 rounded border border-[#1f1f1f] bg-[#1a1a1a]/30">
-                    <span className="text-xs font-semibold text-white">Reserva de Emergência</span>
-                    <span className="text-xs font-bold text-zinc-400 font-mono">{currencySymbol} 0,00</span>
+                    <span className="text-xs font-semibold text-white">Reserva de Emergência (20% do Caixa)</span>
+                    <span className="text-xs font-bold text-zinc-400 font-mono">{currencySymbol} {(lucroLiquido * 0.2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>

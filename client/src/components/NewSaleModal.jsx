@@ -121,6 +121,26 @@ export default function NewSaleModal() {
     };
     loadContacts();
 
+    const loadServices = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.services_list) {
+            const list = JSON.parse(data.services_list);
+            setServicesOptions(list.map(s => ({
+              id: s.id,
+              name: s.title,
+              price: s.price
+            })));
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar serviços no modal de venda:', err);
+      }
+    };
+    loadServices();
+
     // Check if there is an active custom template in Proposals
     const storedTemplate = localStorage.getItem('dgflow_active_template');
     if (storedTemplate) {
@@ -134,9 +154,23 @@ export default function NewSaleModal() {
       setWizardStep(1);
     };
 
+    const handleServicesUpdated = (e) => {
+      const list = e.detail;
+      if (Array.isArray(list)) {
+        setServicesOptions(list.map(s => ({
+          id: s.id,
+          name: s.title,
+          price: s.price
+        })));
+      }
+    };
+
     window.addEventListener('open-new-sale-modal', handleOpen);
+    window.addEventListener('services_updated', handleServicesUpdated);
+    
     return () => {
       window.removeEventListener('open-new-sale-modal', handleOpen);
+      window.removeEventListener('services_updated', handleServicesUpdated);
     };
   }, []);
 

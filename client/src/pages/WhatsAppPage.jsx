@@ -122,20 +122,60 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
   // Attendants State
-  const [attendants, setAttendants] = useState(() => {
-    const userObj = (() => {
+  const [attendants, setAttendants] = useState([]);
+  
+  useEffect(() => {
+    const loadAttendants = async () => {
       try {
-        return JSON.parse(localStorage.getItem('user'));
-      } catch {
-        return null;
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.team_members) {
+            const list = JSON.parse(data.team_members);
+            const mapped = list.map(m => ({
+              id: m.id,
+              name: m.name,
+              role: m.role,
+              initials: m.avatar || m.name.slice(0, 2).toUpperCase(),
+              activeChats: m.status === 'Ativo' ? 12 : 0,
+              sentMessages: m.status === 'Ativo' ? 154 : 0,
+              session: m.status === 'Ativo' ? 'Sessão Conectada 🟢' : 'Inativo 🔴'
+            }));
+            setAttendants(mapped);
+          } else {
+            // Default active proprietor fallback
+            const name = activeUserName;
+            const initials = activeUserInitials;
+            setAttendants([
+              { id: '1', name: name, role: 'Proprietário', initials: initials, activeChats: 0, sentMessages: 0, session: 'WhatsApp da equipe' }
+            ]);
+          }
+        }
+      } catch (err) {
+        console.error('[WhatsAppPage] Error fetching team attendants:', err);
       }
-    })();
-    const name = userObj?.name || 'Gleison';
-    const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'GL';
-    return [
-      { id: 1, name: name, role: 'Proprietário', initials: initials, activeChats: 0, sentMessages: 0, session: 'WhatsApp da equipe' }
-    ];
-  });
+    };
+    loadAttendants();
+
+    // Sincronize automatically on Equipe page changes
+    const syncTeam = (e) => {
+      const list = e.detail;
+      if (Array.isArray(list)) {
+        const mapped = list.map(m => ({
+          id: m.id,
+          name: m.name,
+          role: m.role,
+          initials: m.avatar || m.name.slice(0, 2).toUpperCase(),
+          activeChats: m.status === 'Ativo' ? 12 : 0,
+          sentMessages: m.status === 'Ativo' ? 154 : 0,
+          session: m.status === 'Ativo' ? 'Sessão Conectada 🟢' : 'Inativo 🔴'
+        }));
+        setAttendants(mapped);
+      }
+    };
+    window.addEventListener('team_members_updated', syncTeam);
+    return () => window.removeEventListener('team_members_updated', syncTeam);
+  }, [activeUserName, activeUserInitials]);
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
   const [selectedAgentForActivity, setSelectedAgentForActivity] = useState(null);
   const [agentMetrics, setAgentMetrics] = useState(null);

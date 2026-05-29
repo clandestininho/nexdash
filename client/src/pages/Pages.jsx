@@ -67,6 +67,11 @@ export default function Pages() {
   const [customDomain, setCustomDomain] = useState('dgflow.com.br/p/nexfy');
   const [leadCaptureConfigured, setLeadCaptureConfigured] = useState(false);
 
+  // Tracking pixel configurations
+  const [metaPixelId, setMetaPixelId] = useState('');
+  const [googleAnalyticsId, setGoogleAnalyticsId] = useState('');
+  const [isPixelModalOpen, setIsPixelModalOpen] = useState(false);
+
   // --- TAB: AGENDAMENTO (SCHEDULING) STATES ---
   const [schedSubTab, setSchedSubTab] = useState('configs'); // configs, meeting-types, availability
   const [schedSlug, setSchedSlug] = useState('nexfy');
@@ -77,6 +82,15 @@ export default function Pages() {
   const [schedWelcomeMsg, setSchedWelcomeMsg] = useState('Olá! Escolha o melhor horário para nossa conversa.');
   const [schedConfirmMsg, setSchedConfirmMsg] = useState('Reunião confirmada! Você receberá um e-mail com os detalhes.');
   
+  // Grade horaria de atendimento
+  const [availability, setAvailability] = useState({
+    'Segunda-feira': { active: true, start: '09:00', end: '18:00' },
+    'Terça-feira': { active: true, start: '09:00', end: '18:00' },
+    'Quarta-feira': { active: true, start: '09:00', end: '18:00' },
+    'Quinta-feira': { active: true, start: '09:00', end: '18:00' },
+    'Sexta-feira': { active: true, start: '09:00', end: '18:00' }
+  });
+
   // Meeting types list
   const [meetingTypes, setMeetingTypes] = useState(INITIAL_MEETING_TYPES);
   const [isNewMeetingModalOpen, setIsNewMeetingModalOpen] = useState(false);
@@ -115,6 +129,37 @@ export default function Pages() {
       setMeetingTypes(INITIAL_MEETING_TYPES);
       localStorage.setItem('dgflow_meeting_types', JSON.stringify(INITIAL_MEETING_TYPES));
     }
+
+    // Load configurations saved in the SQLite settings database
+    const loadSettings = async () => {
+      try {
+        const { apiFetch } = await import('../lib/api');
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data) {
+            if (data.page_primary_color) setPrimaryColor(data.page_primary_color);
+            if (data.page_main_title) setHeroTitle(data.page_main_title);
+            if (data.page_desc_text) setHeroSubtitle(data.page_desc_text);
+            if (data.custom_domain) setCustomDomain(data.custom_domain);
+            if (data.meta_pixel_id) setMetaPixelId(data.meta_pixel_id);
+            if (data.google_analytics_id) setGoogleAnalyticsId(data.google_analytics_id);
+            if (data.lead_capture_configured) setLeadCaptureConfigured(data.lead_capture_configured === 'true');
+            if (data.availability_hours) setAvailability(JSON.parse(data.availability_hours));
+            if (data.sched_slug) setSchedSlug(data.sched_slug);
+            if (data.sched_min_hours) setSchedMinHours(data.sched_min_hours);
+            if (data.sched_max_days) setSchedMaxDays(data.sched_max_days);
+            if (data.sched_pipeline) setSchedPipeline(data.sched_pipeline);
+            if (data.sched_pipeline_stage) setSchedPipelineStage(data.sched_pipeline_stage);
+            if (data.sched_welcome_msg) setSchedWelcomeMsg(data.sched_welcome_msg);
+            if (data.sched_confirm_msg) setSchedConfirmMsg(data.sched_confirm_msg);
+          }
+        }
+      } catch (err) {
+        console.error('[Pages] Error loading settings:', err);
+      }
+    };
+    loadSettings();
   }, []);
 
   const saveProjects = (updatedList) => {
@@ -810,7 +855,32 @@ export default function Pages() {
                 {/* Footer action button */}
                 <div className="pt-2 flex justify-end">
                   <button 
-                    onClick={() => alert("Configurações de agendamento online salvas!")}
+                    onClick={async () => {
+                      try {
+                        const { apiFetch } = await import('../lib/api');
+                        const res = await apiFetch('/api/settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            sched_slug: schedSlug,
+                            sched_min_hours: schedMinHours,
+                            sched_max_days: schedMaxDays,
+                            sched_pipeline: schedPipeline,
+                            sched_pipeline_stage: schedPipelineStage,
+                            sched_welcome_msg: schedWelcomeMsg,
+                            sched_confirm_msg: schedConfirmMsg
+                          })
+                        });
+                        if (res.ok) {
+                          alert("Configurações de agendamento online salvas com sucesso!");
+                        } else {
+                          alert("Erro ao salvar configurações de agendamento.");
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        alert("Erro de conexão ao salvar.");
+                      }
+                    }}
                     className="px-5 py-2 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-semibold text-xs shadow-md shadow-[#e13a40]/10 transition-colors"
                   >
                     Salvar Alterações
@@ -887,20 +957,97 @@ export default function Pages() {
           {schedSubTab === 'availability' && (
             <Card className="bg-[#0c0c0e] border-[#1f1f23] text-white">
               <CardContent className="p-6 space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Grade Horária de Atendimento</h4>
-                <p className="text-[10px] text-zinc-500">Configure os horários de segunda a sexta que você deseja deixar disponível para chamadas com clientes corporativos.</p>
+                <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-white">Grade Horária de Atendimento</h4>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Configure os horários de segunda a sexta que você deseja deixar disponível para chamadas com clientes corporativos.</p>
+                  </div>
+                  
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const { apiFetch } = await import('../lib/api');
+                        const res = await apiFetch('/api/settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            availability_hours: JSON.stringify(availability)
+                          })
+                        });
+                        if (res.ok) {
+                          alert("Grade horária de disponibilidade salva com sucesso!");
+                        } else {
+                          alert("Falha ao salvar disponibilidade.");
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        alert("Erro de conexão.");
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white text-[10px] font-bold shadow-md shadow-[#e13a40]/5 transition-colors uppercase tracking-wider shrink-0"
+                  >
+                    Salvar Grade
+                  </button>
+                </div>
                 
-                <div className="space-y-2 pt-2 text-xs">
-                  {['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'].map(day => (
-                    <div key={day} className="flex items-center justify-between p-3 rounded-lg bg-zinc-950/40 border border-zinc-900">
-                      <span className="font-semibold text-white">{day}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-zinc-500 font-mono">09:00 - 12:00</span>
-                        <span className="text-[10px] text-zinc-500 font-mono">14:00 - 18:00</span>
-                        <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded uppercase">Ativo</span>
+                <div className="space-y-3 pt-2 text-xs">
+                  {Object.keys(availability).map(day => {
+                    const info = availability[day];
+                    return (
+                      <div key={day} className="flex items-center justify-between p-3 rounded-lg bg-zinc-950/40 border border-zinc-900 gap-4 flex-wrap sm:flex-nowrap">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox"
+                            checked={info.active}
+                            onChange={(e) => {
+                              setAvailability(prev => ({
+                                ...prev,
+                                [day]: { ...prev[day], active: e.target.checked }
+                              }));
+                            }}
+                            className="rounded border-zinc-800 bg-zinc-900 text-[#e13a40] focus:ring-[#e13a40] h-4 w-4 cursor-pointer"
+                          />
+                          <span className={`font-semibold ${info.active ? 'text-white font-bold' : 'text-zinc-500 line-through'}`}>{day}</span>
+                        </div>
+                        
+                        {info.active ? (
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-zinc-500 font-body">Início:</span>
+                              <input 
+                                type="text"
+                                value={info.start}
+                                onChange={(e) => {
+                                  setAvailability(prev => ({
+                                    ...prev,
+                                    [day]: { ...prev[day], start: e.target.value }
+                                  }));
+                                }}
+                                className="bg-[#101014] text-[10px] border border-zinc-850 px-2 py-1 rounded text-white focus:border-[#e13a40] w-16 outline-none font-mono"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-zinc-500 font-body">Fim:</span>
+                              <input 
+                                type="text"
+                                value={info.end}
+                                onChange={(e) => {
+                                  setAvailability(prev => ({
+                                    ...prev,
+                                    [day]: { ...prev[day], end: e.target.value }
+                                  }));
+                                }}
+                                className="bg-[#101014] text-[10px] border border-zinc-850 px-2 py-1 rounded text-white focus:border-[#e13a40] w-16 outline-none font-mono"
+                              />
+                            </div>
+                            <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded uppercase">Ativo</span>
+                          </div>
+                        ) : (
+                          <span className="text-[9px] font-bold text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded uppercase select-none">Inativo</span>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -958,7 +1105,7 @@ export default function Pages() {
 
             {/* Card 3: Pixels e Rastreamento */}
             <div 
-              onClick={() => alert("Redirecionando para Pixels & Rastreamento em Integrações.")}
+              onClick={() => setIsPixelModalOpen(true)}
               className="p-5 rounded-xl border border-[#1f1f23] bg-[#0c0c0e] hover:border-zinc-800 cursor-pointer transition-all flex items-start gap-4 group"
             >
               <div className="h-11 w-11 rounded-lg bg-[#e13a40]/10 border border-[#e13a40]/20 flex items-center justify-center text-[#e13a40] group-hover:scale-105 transition-all shrink-0">
@@ -1244,6 +1391,82 @@ export default function Pages() {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+      {/* --- MODAL: PIXELS E RASTREAMENTO --- */}
+      {isPixelModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl bg-[#0c0c0e] border border-[#1f1f23] text-white p-6 shadow-2xl animate-fade-in relative">
+            <button 
+              onClick={() => setIsPixelModalOpen(false)}
+              className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 font-bold text-lg"
+            >
+              ×
+            </button>
+
+            <h2 className="text-base font-bold text-white mb-1">Pixels e Rastreamento</h2>
+            <p className="text-zinc-500 text-xs mb-6">Integre chaves de tráfego pago e analíticos à sua landing page pública de captação.</p>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold">Meta Pixel ID</label>
+                <Input 
+                  value={metaPixelId}
+                  onChange={(e) => setMetaPixelId(e.target.value)}
+                  placeholder="Ex: 123456789012345"
+                  className="bg-[#101014] border-zinc-800 text-white text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold">Google Analytics (ID de Medição)</label>
+                <Input 
+                  value={googleAnalyticsId}
+                  onChange={(e) => setGoogleAnalyticsId(e.target.value)}
+                  placeholder="Ex: G-XXXXXXXXXX"
+                  className="bg-[#101014] border-zinc-800 text-white text-xs font-mono"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="pt-4 border-t border-[#1f1f23] flex items-center justify-end gap-2 text-xs">
+                <button
+                  onClick={() => setIsPixelModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white font-semibold"
+                >
+                  Fechar
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const { apiFetch } = await import('../lib/api');
+                      const res = await apiFetch('/api/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          meta_pixel_id: metaPixelId,
+                          google_analytics_id: googleAnalyticsId
+                        })
+                      });
+                      if (res.ok) {
+                        alert("Configurações de Pixel e Rastreamento salvas com sucesso!");
+                        setIsPixelModalOpen(false);
+                      } else {
+                        alert("Falha ao salvar pixels.");
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      alert("Erro de conexão ao salvar.");
+                    }
+                  }}
+                  className="px-5 py-2 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold"
+                >
+                  Salvar Chaves
+                </button>
+              </div>
+
+            </div>
           </div>
         </div>
       )}

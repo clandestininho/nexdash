@@ -26,6 +26,7 @@ export default function RegisterLeadPublic() {
   const [pageButtonText, setPageButtonText] = useState('Enviar Cadastro');
   const [pageSecondaryBtnText, setPageSecondaryBtnText] = useState('Ver Portfólio');
   const [pageHeroImage, setPageHeroImage] = useState('');
+  const [pagePrimaryColor, setPagePrimaryColor] = useState('#e13a40');
   
   // Country Selector State
   const [pais, setPais] = useState('Brasil');
@@ -70,6 +71,7 @@ export default function RegisterLeadPublic() {
           if (data.pageButtonText) setPageButtonText(data.pageButtonText);
           if (data.pageSecondaryBtnText) setPageSecondaryBtnText(data.pageSecondaryBtnText);
           if (data.pageHeroImage !== undefined) setPageHeroImage(data.pageHeroImage);
+          if (data.pagePrimaryColor) setPagePrimaryColor(data.pagePrimaryColor);
         }
       } catch (err) {
         console.error('Erro ao buscar info pública:', err);
@@ -190,6 +192,36 @@ export default function RegisterLeadPublic() {
 
   return (
     <div className="min-h-screen bg-[#070708] text-zinc-100 flex flex-col justify-center items-center py-12 px-4 font-body animate-fade-in relative overflow-hidden">
+      <style>{`
+        .bg-\\[\\#e13a40\\] {
+          background-color: ${pagePrimaryColor} !important;
+        }
+        .hover\\:bg-\\[\\#c52f34\\]:hover {
+          background-color: ${pagePrimaryColor}cc !important;
+        }
+        .text-\\[\\#e13a40\\] {
+          color: ${pagePrimaryColor} !important;
+        }
+        .border-\\[\\#e13a40\\] {
+          border-color: ${pagePrimaryColor} !important;
+        }
+        .border-\\[\\#e13a40\\]\\/15 {
+          border-color: ${pagePrimaryColor}26 !important;
+        }
+        .border-\\[\\#e13a40\\]\\/20 {
+          border-color: ${pagePrimaryColor}33 !important;
+        }
+        .border-\\[\\#e13a40\\]\\/25 {
+          border-color: ${pagePrimaryColor}40 !important;
+        }
+        .bg-\\[\\#e13a40\\]\\/10 {
+          background-color: ${pagePrimaryColor}1a !important;
+        }
+        .focus\\:border-\\[\\#e13a40\\]:focus {
+          border-color: ${pagePrimaryColor} !important;
+          box-shadow: 0 0 0 1px ${pagePrimaryColor}25 !important;
+        }
+      `}</style>
       
       {/* Colorful Gradient Ambient Lights in Background */}
       <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#e13a40]/5 blur-[130px] pointer-events-none" />
