@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -9,7 +9,7 @@ import {
   Save, 
   Plus, 
   Type, 
-  Image as ImageIcon, 
+  ImageIcon, 
   Users, 
   MousePointer, 
   Menu as MenuIcon, 
@@ -21,6 +21,7 @@ import {
   Star
 } from 'lucide-react';
 import { Input } from '../components/ui/Input';
+import { apiFetch } from '../lib/api';
 
 export default function VisualEditor() {
   const navigate = useNavigate();
@@ -38,6 +39,29 @@ export default function VisualEditor() {
   
   // Custom logo image or hero placeholder
   const [heroImage, setHeroImage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load existing settings from SQLite on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.page_badge_text) setBadgeText(data.page_badge_text);
+          if (data.page_main_title) setMainTitle(data.page_main_title);
+          if (data.page_subtitle_text) setSubtitleText(data.page_subtitle_text);
+          if (data.page_desc_text) setDescText(data.page_desc_text);
+          if (data.page_button_text) setButtonText(data.page_button_text);
+          if (data.page_secondary_btn_text) setSecondaryBtnText(data.page_secondary_btn_text);
+          if (data.page_hero_image) setHeroImage(data.page_hero_image);
+        }
+      } catch (err) {
+        console.error('[VisualEditor] Error loading saved settings:', err);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const headlineSuggestions = [
     "Design que transforma marcas em experiências memoráveis",
@@ -59,20 +83,47 @@ export default function VisualEditor() {
     setHeroImage('');
   };
 
-  const handleSave = () => {
-    // Save to localStorage
-    const pageData = {
-      badgeText,
-      mainTitle,
-      subtitleText,
-      descText,
-      buttonText,
-      secondaryBtnText,
-      heroImage
-    };
-    localStorage.setItem('dgflow_custom_page_data', JSON.stringify(pageData));
-    alert("Alterações visuais salvas com sucesso no seu modelo de site público!");
-    navigate('/pages');
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const pageData = {
+        badgeText,
+        mainTitle,
+        subtitleText,
+        descText,
+        buttonText,
+        secondaryBtnText,
+        heroImage
+      };
+      localStorage.setItem('dgflow_custom_page_data', JSON.stringify(pageData));
+
+      // Save to server SQLite settings table dynamically
+      const res = await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          page_badge_text: badgeText,
+          page_main_title: mainTitle,
+          page_subtitle_text: subtitleText,
+          page_desc_text: descText,
+          page_button_text: buttonText,
+          page_secondary_btn_text: secondaryBtnText,
+          page_hero_image: heroImage
+        })
+      });
+
+      if (res.ok) {
+        alert("Alterações visuais salvas com sucesso no banco de dados e aplicadas ao seu modelo de site público!");
+        navigate('/pages');
+      } else {
+        alert("Falha técnica ao salvar no banco de dados. Alterações mantidas localmente.");
+      }
+    } catch (err) {
+      console.error('[VisualEditor] Error saving customized page settings:', err);
+      alert("Erro de conexão ao salvar configurações no banco de dados. Alterações mantidas apenas no navegador.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

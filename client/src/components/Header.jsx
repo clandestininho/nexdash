@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, Sparkles, Sun, Moon, Globe, ChevronDown } from 'lucide-react';
+import { Search, Bell, Sparkles, Sun, Moon, Globe, ChevronDown, Check, ChevronRight, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { useSocket } from '../hooks/useSocket';
+import { getStageColor, getStageLabel } from '../lib/stages';
+import { formatRelativeTime } from '../lib/utils';
 
 export default function Header() {
   const [userName, setUserName] = useState('Gleison');
@@ -8,6 +11,11 @@ export default function Header() {
   const [goalAchieved, setGoalAchieved] = useState(0);
   const [goalTarget, setGoalTarget] = useState(10000);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  // Real-time notifications popover states
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -35,6 +43,44 @@ export default function Header() {
     return () => window.removeEventListener('credits-updated', handleCreditsUpdate);
   }, []);
 
+  // Fetch initial notifications log on mount
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const res = await apiFetch('/api/log');
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : [];
+          setNotifications(list);
+
+          // Check if there are any unread notifications since last read timestamp
+          const lastReadTime = localStorage.getItem('notifications_last_read_time') || '0';
+          const hasNew = list.some(n => new Date(n.created_at || n.timestamp).getTime() > parseInt(lastReadTime));
+          setHasUnread(hasNew);
+        }
+      } catch (err) {
+        console.error('[Header:Notifications] Failed to load initial logs:', err);
+      }
+    };
+    fetchLogs();
+  }, []);
+
+  // Sync real-time classifications via socket
+  useSocket('classification:new', (data) => {
+    const entry = data.entry || data;
+    if (entry) {
+      setNotifications(prev => [entry, ...prev]);
+      setHasUnread(true);
+
+      // Play a premium visual-audio chime notification sound
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+        audio.volume = 0.25;
+        audio.play().catch(() => {});
+      } catch {}
+    }
+  });
+
   useEffect(() => {
     try {
       const storedUser = JSON.parse(localStorage.getItem('user'));
@@ -59,6 +105,22 @@ export default function Header() {
     };
     fetchKPIs();
   }, []);
+
+  const getInitialsColor = (name) => {
+    const colors = [
+      'bg-red-500/20 text-red-400 border-red-500/30',
+      'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      'bg-pink-500/20 text-pink-400 border-pink-500/30',
+    ];
+    let sum = 0;
+    for (let i = 0; i < (name || '').length; i++) {
+      sum += name.charCodeAt(i);
+    }
+    return colors[sum % colors.length];
+  };
 
   const progressPercentage = Math.min(100, Math.max(0, (goalAchieved / goalTarget) * 100));
 
@@ -107,11 +169,138 @@ export default function Header() {
           <span className="text-[10px] tracking-wider uppercase font-body">{aiCredits} CRÉDITOS IA</span>
         </div>
 
-        {/* Notification Bell */}
-        <button className="relative p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1a1a] transition-all">
-          <Bell className="h-4.5 w-4.5" />
-          <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-[#e13a40] rounded-full animate-pulse" />
-        </button>
+        {/* Notification Bell with interactive dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => {
+              setShowNotifications(!showNotifications);
+              if (!showNotifications) {
+                setHasUnread(false);
+                localStorage.setItem('notifications_last_read_time', Date.now().toString());
+              }
+            }}
+            className={`relative p-1.5 rounded-lg transition-all ${
+              showNotifications 
+                ? 'bg-zinc-900 text-white' 
+                : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1a1a]'
+            }`}
+            title="Centro de Notificações"
+          >
+            <Bell className="h-4.5 w-4.5" />
+            {hasUnread && (
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-[#e13a40] rounded-full animate-pulse" />
+            )}
+          </button>
+
+          {/* Premium Glassmorphic Dropdown Popover */}
+          {showNotifications && (
+            <div className="absolute right-0 mt-2.5 w-96 bg-[#0c0c0e]/95 border border-[#1f1f23] rounded-2xl shadow-2xl backdrop-blur-md z-50 overflow-hidden animate-slide-down">
+              
+              {/* Header */}
+              <div className="p-4 border-b border-[#1f1f23] flex items-center justify-between bg-[#08080a]">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#e13a40] animate-pulse" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">Histórico de Triagem</span>
+                </div>
+                {notifications.length > 0 && (
+                  <button 
+                    onClick={() => {
+                      setHasUnread(false);
+                      localStorage.setItem('notifications_last_read_time', Date.now().toString());
+                      setShowNotifications(false);
+                    }}
+                    className="text-[10px] font-bold text-[#e13a40] hover:text-red-400 flex items-center gap-0.5 hover:underline"
+                  >
+                    <Check className="h-3 w-3" />
+                    <span>Lidas</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Scrollable list */}
+              <div className="max-h-80 overflow-y-auto divide-y divide-[#1f1f23] scrollbar-thin">
+                {notifications.length > 0 ? (
+                  notifications.map((log, idx) => {
+                    const fromColor = getStageColor(log.from_stage || log.old_stage) || '#9E9E9E';
+                    const toColor = getStageColor(log.to_stage || log.new_stage) || '#e13a40';
+                    const initials = (log.contact_name || 'S').slice(0, 2).toUpperCase();
+                    
+                    return (
+                      <div key={log.id || idx} className="p-3.5 hover:bg-zinc-900/30 transition-colors flex gap-3 text-left">
+                        {/* Avatar */}
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-bold text-[10px] border flex-shrink-0 relative ${getInitialsColor(log.contact_name)}`}>
+                          {initials}
+                        </div>
+
+                        {/* Content details */}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-xs font-bold text-white truncate leading-none">
+                              {log.contact_name || 'Lead Anônimo'}
+                            </span>
+                            <span className="text-[9px] text-zinc-500 font-mono">
+                              {formatRelativeTime(log.created_at || log.timestamp)}
+                            </span>
+                          </div>
+
+                          {/* Stage Transition tags */}
+                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                            <span 
+                              className="text-[8px] px-1 py-0.2 rounded font-bold uppercase tracking-wider font-mono border"
+                              style={{ 
+                                color: fromColor, 
+                                borderColor: `${fromColor}25`,
+                                backgroundColor: `${fromColor}08`
+                              }}
+                            >
+                              {getStageLabel(log.from_stage || log.old_stage) || 'Entrada'}
+                            </span>
+                            <ChevronRight className="h-2.5 w-2.5 text-zinc-650 shrink-0" />
+                            <span 
+                              className="text-[8px] px-1 py-0.2 rounded font-bold uppercase tracking-wider font-mono border"
+                              style={{ 
+                                color: toColor, 
+                                borderColor: `${toColor}25`,
+                                backgroundColor: `${toColor}08`
+                              }}
+                            >
+                              {getStageLabel(log.to_stage || log.new_stage)}
+                            </span>
+                          </div>
+
+                          {/* IA justification reason */}
+                          {log.reason && (
+                            <p className="text-[10px] text-zinc-400 leading-normal font-body italic border-l border-zinc-800 pl-2 bg-black/10 p-1.5 rounded mt-1 line-clamp-2">
+                              "{log.reason}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  /* Empty state */
+                  <div className="py-12 text-center flex flex-col items-center justify-center space-y-2 opacity-50">
+                    <AlertCircle className="h-6 w-6 text-zinc-650" />
+                    <span className="text-[11px] text-zinc-500 font-body">Nenhuma triagem recente no funil</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-2.5 border-t border-[#1f1f23] bg-[#08080a] text-center shrink-0">
+                <a 
+                  href="/log" 
+                  onClick={() => setShowNotifications(false)}
+                  className="text-[10px] text-zinc-400 hover:text-white font-bold tracking-wide uppercase hover:underline block font-body"
+                >
+                  Ver Painel de Logs →
+                </a>
+              </div>
+
+            </div>
+          )}
+        </div>
 
         {/* Language selector */}
         <button className="flex items-center gap-1 p-1 px-2 rounded-lg hover:bg-[#1a1a1a] text-zinc-400 hover:text-zinc-100 text-xs font-medium transition-all">

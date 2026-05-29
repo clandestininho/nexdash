@@ -56,10 +56,27 @@ export default function createContactsRouter(io) {
       const companyLogo = getSetting(targetUserId, 'profile_avatar') || getSetting(targetUserId, 'onboarding_logo') || '';
       const customFieldsStr = getSetting(targetUserId, 'lead_custom_fields') || '{"doc":true,"cep":true,"notes":true,"project_interest":true}';
       
+      // Load public page customization settings saved via Visual Editor
+      const pageBadgeText = getSetting(targetUserId, 'page_badge_text') || 'Design Profissional';
+      const pageMainTitle = getSetting(targetUserId, 'page_main_title') || companyName;
+      const pageSubtitleText = getSetting(targetUserId, 'page_subtitle_text') || '';
+      const pageDescText = getSetting(targetUserId, 'page_desc_text') || '';
+      const pageButtonText = getSetting(targetUserId, 'page_button_text') || 'Enviar Cadastro';
+      const pageSecondaryBtnText = getSetting(targetUserId, 'page_secondary_btn_text') || 'Ver Portfólio';
+      const pageHeroImage = getSetting(targetUserId, 'page_hero_image') || '';
+
       res.json({
         companyName,
         companyLogo,
-        customFields: JSON.parse(customFieldsStr)
+        customFields: JSON.parse(customFieldsStr),
+        // customization styles/texts
+        pageBadgeText,
+        pageMainTitle,
+        pageSubtitleText,
+        pageDescText,
+        pageButtonText,
+        pageSecondaryBtnText,
+        pageHeroImage
       });
     } catch (error) {
       console.error(`[Route:Contacts] Public Info Error:`, error.message);
