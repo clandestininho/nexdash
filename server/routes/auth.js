@@ -402,16 +402,138 @@ router.get('/:provider(google|github|apple)', (req, res) => {
 });
 
 // GET /api/auth/callback/:provider - OAuth callback returning HTML script to save user variables dynamically
-router.get('/callback/:provider(google|github|apple)', (req, res) => {
+router.get('/callback/:provider(google|github|apple)', async (req, res) => {
   const { provider } = req.params;
+  const { code } = req.query;
   let { email, name } = req.query;
   const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-  // Fallbacks
-  email = email || `user_${provider}@nexdash.com`;
-  name = name || `Usuário ${provider.charAt(0).toUpperCase() + provider.slice(1)}`;
-
   try {
+    // 1. Google OAuth Token Exchange and Profile Retrieval
+    if (provider === 'google' && code && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      logSecurityEvent('OAUTH_EXCHANGE_START', 'google', ip, 'Exchanging Google auth code for token');
+      let origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+      if (origin.includes('legattoorg.com.br') && !origin.startsWith('https://')) {
+        origin = origin.replace('http://', 'https://');
+      }
+      const redirectUri = origin + '/api/auth/callback/google';
+
+      const tokenUrl = 'https://oauth2.googleapis.com/token';
+      const bodyParams = new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      });
+
+      const tokenResponse = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: bodyParams.toString()
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('[GoogleOAuth] Token exchange failed:', errorText);
+        throw new Error(`Google token exchange failed: ${errorText}`);
+      }
+
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+
+      // Fetch user profile info
+      const userInfoUrl = 'https://www.googleapis.com/oauth2/v2/userinfo';
+      const userInfoResponse = await fetch(userInfoUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+
+      if (!userInfoResponse.ok) {
+        throw new Error('Google userinfo fetch failed');
+      }
+
+      const userInfo = await userInfoResponse.json();
+      email = userInfo.email;
+      name = userInfo.name || userInfo.email;
+      logSecurityEvent('OAUTH_EXCHANGE_SUCCESS', email, ip, `Successfully fetched Google profile for ${name}`);
+    }
+
+    // 2. GitHub OAuth Token Exchange and Profile Retrieval
+    if (provider === 'github' && code && process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+      logSecurityEvent('OAUTH_EXCHANGE_START', 'github', ip, 'Exchanging GitHub auth code for token');
+      let origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+      if (origin.includes('legattoorg.com.br') && !origin.startsWith('https://')) {
+        origin = origin.replace('http://', 'https://');
+      }
+      const redirectUri = origin + '/api/auth/callback/github';
+
+      const tokenUrl = 'https://github.com/login/oauth/access_token';
+      const tokenResponse = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: process.env.GITHUB_CLIENT_ID,
+          client_secret: process.env.GITHUB_CLIENT_SECRET,
+          code,
+          redirect_uri: redirectUri
+        })
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('[GitHubOAuth] Token exchange failed:', errorText);
+        throw new Error(`GitHub token exchange failed: ${errorText}`);
+      }
+
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+
+      // Fetch user profile info
+      const userInfoUrl = 'https://api.github.com/user';
+      const userInfoResponse = await fetch(userInfoUrl, {
+        headers: { 
+          'Authorization': `token ${accessToken}`,
+          'User-Agent': 'NEXDASH-App'
+        }
+      });
+
+      if (!userInfoResponse.ok) {
+        throw new Error('GitHub userinfo fetch failed');
+      }
+
+      const userInfo = await userInfoResponse.json();
+      name = userInfo.name || userInfo.login;
+
+      // Fetch user email if not public in profile
+      if (userInfo.email) {
+        email = userInfo.email;
+      } else {
+        const emailsResponse = await fetch('https://api.github.com/user/emails', {
+          headers: { 
+            'Authorization': `token ${accessToken}`,
+            'User-Agent': 'NEXDASH-App'
+          }
+        });
+        if (emailsResponse.ok) {
+          const emails = await emailsResponse.json();
+          const primaryEmail = emails.find(e => e.primary) || emails[0];
+          if (primaryEmail) email = primaryEmail.email;
+        }
+      }
+
+      if (!email) {
+        email = `${userInfo.login}@github.com`;
+      }
+      logSecurityEvent('OAUTH_EXCHANGE_SUCCESS', email, ip, `Successfully fetched GitHub profile for ${name}`);
+    }
+
+    // Fallbacks
+    email = email || `user_${provider}@nexdash.com`;
+    name = name || `Usuário ${provider.charAt(0).toUpperCase() + provider.slice(1)}`;
+
     let user = getUserByEmail(email);
     if (!user) {
       // Create user automatically in trial plan

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
 import { 
   DollarSign, 
   ArrowUpRight, 
@@ -55,6 +56,27 @@ const INITIAL_CATEGORIES_PAYABLE = ['Ferramentas e Software', 'Marketing e Tráf
 export default function Finance() {
   const location = useLocation();
   const navigate = useNavigate();
+  
+  const [profileMoeda, setProfileMoeda] = useState('BRL');
+
+  useEffect(() => {
+    const fetchMoeda = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const settings = await res.json();
+          if (settings && settings.profile_moeda) {
+            setProfileMoeda(settings.profile_moeda);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching settings currency:', err);
+      }
+    };
+    fetchMoeda();
+  }, []);
+
+  const currencySymbol = profileMoeda === 'EUR' ? '€' : profileMoeda === 'USD' ? '$' : 'R$';
   
   const [activeTab, setActiveTab] = useState('visao-geral');
   const [transactions, setTransactions] = useState([]);
@@ -571,16 +593,16 @@ export default function Finance() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="text-2xl font-bold text-white font-body">
-                  R$ {(totalReceitas + pendingReceitas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {currencySymbol} {(totalReceitas + pendingReceitas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
                   <div>
                     <span className="block font-medium">Pago no Mês</span>
-                    <span className="font-semibold text-emerald-400">R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-semibold text-emerald-400">{currencySymbol} {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div>
                     <span className="block font-medium">Pendente</span>
-                    <span className="font-semibold text-zinc-300">R$ {pendingReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-semibold text-zinc-300">{currencySymbol} {pendingReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </CardContent>
@@ -596,16 +618,16 @@ export default function Finance() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="text-2xl font-bold text-white font-body">
-                  R$ {(totalDespesas + pendingDespesas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {currencySymbol} {(totalDespesas + pendingDespesas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
                   <div>
                     <span className="block font-medium">Liquidado</span>
-                    <span className="font-semibold text-rose-400">R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-semibold text-rose-400">{currencySymbol} {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div>
                     <span className="block font-medium">Pendente</span>
-                    <span className="font-semibold text-zinc-300">R$ {pendingDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-semibold text-zinc-300">{currencySymbol} {pendingDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </CardContent>
@@ -621,7 +643,7 @@ export default function Finance() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="text-2xl font-black text-white font-body">
-                  R$ {lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {currencySymbol} {lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </div>
                 <p className="text-[10px] text-zinc-500 font-body leading-normal">
                   Relação direta Competência do mês atual acumulando total receitas liquidadas descontando saídas confirmadas.
@@ -779,7 +801,7 @@ export default function Finance() {
                       <td className="p-3 font-semibold text-white">{tx.client}</td>
                       <td className="p-3 text-zinc-400 font-body">{tx.description}</td>
                       <td className="p-3"><span className="bg-[#1a1a1a] border border-[#1f1f1f] text-zinc-400 px-2 py-0.5 rounded">{tx.category}</span></td>
-                      <td className="p-3 text-right font-bold text-white font-mono">R$ {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right font-bold text-white font-mono">{currencySymbol} {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 pr-6">
                         <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-semibold uppercase ${
                           tx.status === 'received' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
@@ -837,7 +859,7 @@ export default function Finance() {
                         <td className="p-3 font-semibold text-white">{tx.client}</td>
                         <td className="p-3 text-zinc-400 font-body">{tx.description}</td>
                         <td className="p-3"><span className="bg-[#1a1a1a] border border-[#1f1f1f] text-zinc-400 px-2 py-0.5 rounded">{tx.category}</span></td>
-                        <td className="p-3 text-right font-bold text-white font-mono font-body">R$ {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 text-right font-bold text-white font-mono font-body">{currencySymbol} {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 pr-6">
                           <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-semibold uppercase ${
                             tx.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
@@ -885,7 +907,7 @@ export default function Finance() {
                     </td>
                     <td className="p-3 text-zinc-400 font-mono">{cli.email}</td>
                     <td className="p-3 text-center text-zinc-300 font-semibold">{cli.items} propostas</td>
-                    <td className="p-3 text-right font-bold text-white font-mono">R$ {cli.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 text-right font-bold text-white font-mono">{currencySymbol} {cli.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     <td className="p-3 text-center">
                       <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-semibold uppercase ${
                         cli.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
@@ -1088,7 +1110,7 @@ export default function Finance() {
             <Card className="bg-[#121212] border-[#1f1f1f] text-white">
               <CardContent className="pt-4 space-y-1">
                 <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-bold">MRR Recorrente</span>
-                <div className="text-2xl font-bold text-emerald-400">R$ 8.450,00</div>
+                <div className="text-2xl font-bold text-emerald-400">{currencySymbol} 8.450,00</div>
                 <p className="text-[9px] text-zinc-500">Faturamento recorrente mensal</p>
               </CardContent>
             </Card>
@@ -1096,7 +1118,7 @@ export default function Finance() {
             <Card className="bg-[#121212] border-[#1f1f1f] text-white">
               <CardContent className="pt-4 space-y-1">
                 <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-bold">LTV Estimado</span>
-                <div className="text-2xl font-bold text-white">R$ 10.140,00</div>
+                <div className="text-2xl font-bold text-white">{currencySymbol} 10.140,00</div>
                 <p className="text-[9px] text-zinc-500">Valor médio de ciclo anual</p>
               </CardContent>
             </Card>
@@ -1131,7 +1153,7 @@ export default function Finance() {
                     <td className="p-3 pl-6 font-semibold text-white">Marina Sousa</td>
                     <td className="p-3 text-zinc-400">Mensal (SaaS)</td>
                     <td className="p-3 font-mono text-zinc-500">2026-06-20</td>
-                    <td className="p-3 text-right font-bold text-white font-mono">R$ 1.500,00</td>
+                    <td className="p-3 text-right font-bold text-white font-mono">{currencySymbol} 1.500,00</td>
                     <td className="p-3 pr-6 text-center">
                       <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px]">ATIVO</span>
                     </td>
@@ -1140,7 +1162,7 @@ export default function Finance() {
                     <td className="p-3 pl-6 font-semibold text-white">Construtora Pernambuco</td>
                     <td className="p-3 text-zinc-400">Semestral</td>
                     <td className="p-3 font-mono text-zinc-500">2026-11-15</td>
-                    <td className="p-3 text-right font-bold text-white font-mono">R$ 4.000,00</td>
+                    <td className="p-3 text-right font-bold text-white font-mono">{currencySymbol} 4.000,00</td>
                     <td className="p-3 pr-6 text-center">
                       <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px]">ATIVO</span>
                     </td>
@@ -1178,11 +1200,11 @@ export default function Finance() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-2.5 rounded border border-[#1f1f1f] bg-[#1a1a1a]/30">
                     <span className="text-xs font-semibold text-white">Caixa Principal (Digital)</span>
-                    <span className="text-xs font-bold text-emerald-400 font-mono">R$ 9.500,00</span>
+                    <span className="text-xs font-bold text-emerald-400 font-mono">{currencySymbol} 9.500,00</span>
                   </div>
                   <div className="flex items-center justify-between p-2.5 rounded border border-[#1f1f1f] bg-[#1a1a1a]/30">
                     <span className="text-xs font-semibold text-white">Reserva de Emergência</span>
-                    <span className="text-xs font-bold text-zinc-400 font-mono">R$ 0,00</span>
+                    <span className="text-xs font-bold text-zinc-400 font-mono">{currencySymbol} 0,00</span>
                   </div>
                 </div>
               </div>
@@ -1221,33 +1243,33 @@ export default function Finance() {
             <div className="space-y-3 max-w-lg mx-auto bg-[#0a0a0a]/80 p-5 rounded-xl border border-[#1f1f1f] font-body">
               <div className="flex justify-between items-center text-xs font-semibold py-1.5 border-b border-[#1f1f1f]">
                 <span>(+) RECEITA OPERACIONAL BRUTA</span>
-                <span className="text-emerald-400 font-mono font-bold">R$ {(totalReceitas + pendingReceitas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="text-emerald-400 font-mono font-bold">{currencySymbol} {(totalReceitas + pendingReceitas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between items-center text-xs pl-4 text-zinc-400 py-1">
                 <span>Vendas Liquidadas (Recebidas)</span>
-                <span className="font-mono">R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{currencySymbol} {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between items-center text-xs pl-4 text-zinc-400 py-1">
                 <span>Contratos em Aberto (Pendentes)</span>
-                <span className="font-mono">R$ {pendingReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{currencySymbol} {pendingReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
 
               <div className="flex justify-between items-center text-xs font-semibold py-1.5 border-b border-[#1f1f1f] mt-4">
                 <span>(-) DESPESAS OPERACIONAIS</span>
-                <span className="text-rose-400 font-mono font-bold">R$ {(totalDespesas + pendingDespesas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="text-rose-400 font-mono font-bold">{currencySymbol} {(totalDespesas + pendingDespesas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between items-center text-xs pl-4 text-zinc-400 py-1">
                 <span>Impostos e Licenças Pagas</span>
-                <span className="font-mono">R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{currencySymbol} {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between items-center text-xs pl-4 text-zinc-400 py-1">
                 <span>Custos Operacionais em Aberto</span>
-                <span className="font-mono">R$ {pendingDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono">{currencySymbol} {pendingDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
 
               <div className="flex justify-between items-center text-sm font-black py-2.5 border-t border-[#1f1f1f] mt-6 bg-[#1a1a1a]/50 px-3 rounded">
                 <span>(=) MARGEM LÍQUIDA OPERACIONAL</span>
-                <span className="text-[#e13a40] font-mono font-bold text-base">R$ {lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="text-[#e13a40] font-mono font-bold text-base">{currencySymbol} {lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </CardContent>
@@ -1395,7 +1417,7 @@ export default function Finance() {
                               </span>
                             </td>
                             <td className="p-3 text-right font-bold text-white font-mono">
-                              R$ {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              {currencySymbol} {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="p-3 pr-6 text-center">
                               <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${

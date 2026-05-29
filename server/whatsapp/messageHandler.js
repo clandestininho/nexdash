@@ -58,8 +58,8 @@ async function handleMessage(uId, message, sock) {
   // Skip status broadcasts
   if (jid === 'status@broadcast') return;
 
-  // Skip group messages
-  if (jid.endsWith('@g.us')) return;
+  // Skip group and channel/newsletter messages
+  if (jid.endsWith('@g.us') || jid.endsWith('@newsletter')) return;
 
   // Extract message text
   const text =

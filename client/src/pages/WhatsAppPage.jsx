@@ -33,6 +33,16 @@ import { cn, formatRelativeTime, formatPhone } from '../lib/utils';
 import { Badge } from '../components/ui/Badge';
 
 export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas' }) {
+  const activeUserObj = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user'));
+    } catch {
+      return null;
+    }
+  }, []);
+  const activeUserName = activeUserObj?.name || 'Gleison';
+  const activeUserInitials = activeUserName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'GL';
+
   const [activeTab, setActiveTab] = useState(initialActiveTab);
   const [conversations, setConversations] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
@@ -112,9 +122,20 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
   // Attendants State
-  const [attendants, setAttendants] = useState([
-    { id: 1, name: 'Gleison', role: 'Proprietário', initials: 'GL', activeChats: 0, sentMessages: 0, session: 'WhatsApp da equipe' }
-  ]);
+  const [attendants, setAttendants] = useState(() => {
+    const userObj = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('user'));
+      } catch {
+        return null;
+      }
+    })();
+    const name = userObj?.name || 'Gleison';
+    const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'GL';
+    return [
+      { id: 1, name: name, role: 'Proprietário', initials: initials, activeChats: 0, sentMessages: 0, session: 'WhatsApp da equipe' }
+    ];
+  });
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
   const [selectedAgentForActivity, setSelectedAgentForActivity] = useState(null);
   const [agentMetrics, setAgentMetrics] = useState(null);
@@ -1544,10 +1565,10 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
               <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-950 border border-zinc-900">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-orange-600 to-[#e13a40] flex items-center justify-center font-bold text-white text-xs">
-                    GL
+                    {activeUserInitials}
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-white leading-none">Gleison</h4>
+                    <h4 className="text-xs font-bold text-white leading-none">{activeUserName}</h4>
                     <p className="text-[10px] text-zinc-500 font-body mt-1">Proprietário</p>
                   </div>
                 </div>
@@ -1556,7 +1577,7 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      alert('Gleison já está configurado como Atendente Geral do WhatsApp da Equipe!');
+                      alert(`${activeUserName} já está configurado como Atendente Geral do WhatsApp da Equipe!`);
                       setShowAddAgentModal(false);
                     }}
                     className="px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-[#e13a40]/30 hover:bg-[#e13a40]/5 text-[10px] font-bold text-zinc-200 transition-all cursor-pointer"

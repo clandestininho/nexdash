@@ -10,6 +10,7 @@ export default function Header() {
   const [aiCredits, setAiCredits] = useState(150);
   const [goalAchieved, setGoalAchieved] = useState(0);
   const [goalTarget, setGoalTarget] = useState(10000);
+  const [currency, setCurrency] = useState('BRL');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
 
   // Real-time notifications popover states
@@ -89,21 +90,49 @@ export default function Header() {
       }
     } catch {}
 
-    // Optionally fetch dynamic KPIs from finance API
-    const fetchKPIs = async () => {
+    const loadSettingsAndKPIs = async () => {
       try {
-        const res = await apiFetch('/api/finance/kpis');
+        const res = await apiFetch('/api/settings');
         if (res.ok) {
           const data = await res.json();
-          if (data && typeof data.totalEarnings === 'number') {
-            setGoalAchieved(data.totalEarnings);
+          if (data) {
+            if (data.dashboard_monthly_goal) {
+              setGoalTarget(parseFloat(data.dashboard_monthly_goal) || 10000);
+            }
+            if (data.profile_moeda) {
+              setCurrency(data.profile_moeda);
+            }
           }
         }
       } catch (err) {
-        // Fallback to default mock
+        console.error('Error fetching settings in Header:', err);
+      }
+      
+      try {
+        const storedTxs = localStorage.getItem('dgflow_transactions');
+        if (storedTxs) {
+          const txs = JSON.parse(storedTxs);
+          const total = txs
+            .filter(tx => tx.type === 'income' && tx.status === 'received')
+            .reduce((sum, tx) => sum + tx.amount, 0);
+          setGoalAchieved(total);
+        }
+      } catch (err) {
+        console.error('Error loading transactions in Header:', err);
       }
     };
-    fetchKPIs();
+
+    loadSettingsAndKPIs();
+    
+    window.addEventListener('dgflow_transactions_updated', loadSettingsAndKPIs);
+    window.addEventListener('dashboard_goal_updated', loadSettingsAndKPIs);
+    window.addEventListener('onboarding_completed_event', loadSettingsAndKPIs);
+    
+    return () => {
+      window.removeEventListener('dgflow_transactions_updated', loadSettingsAndKPIs);
+      window.removeEventListener('dashboard_goal_updated', loadSettingsAndKPIs);
+      window.removeEventListener('onboarding_completed_event', loadSettingsAndKPIs);
+    };
   }, []);
 
   const getInitialsColor = (name) => {
@@ -123,6 +152,7 @@ export default function Header() {
   };
 
   const progressPercentage = Math.min(100, Math.max(0, (goalAchieved / goalTarget) * 100));
+  const currencySymbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : 'R$';
 
   return (
     <header className="h-16 border-b border-[#1f1f1f] bg-[#0a0a0a]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
@@ -150,7 +180,7 @@ export default function Header() {
         <div className="hidden lg:flex flex-col w-48 space-y-1">
           <div className="flex items-center justify-between text-[10px] text-zinc-400 font-semibold font-body">
             <span>Meta de Receita</span>
-            <span className="text-zinc-500">R$ {goalAchieved.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / R$ {goalTarget.toLocaleString('pt-BR')}</span>
+            <span className="text-zinc-500">{currencySymbol} {goalAchieved.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {currencySymbol} {goalTarget.toLocaleString('pt-BR')}</span>
           </div>
           <div className="h-1.5 w-full bg-[#1a1a1a] rounded-full overflow-hidden border border-[#1f1f1f]">
             <div 

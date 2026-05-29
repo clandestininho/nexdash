@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Briefcase, 
   Check, 
@@ -12,6 +12,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
+import { apiFetch } from '../lib/api';
 
 const SERVICES = [
   {
@@ -63,6 +64,26 @@ const SERVICES = [
 
 export default function Services() {
   const [activeAccordion, setActiveAccordion] = useState(null);
+  const [profileMoeda, setProfileMoeda] = useState('BRL');
+
+  useEffect(() => {
+    const fetchMoeda = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const settings = await res.json();
+          if (settings && settings.profile_moeda) {
+            setProfileMoeda(settings.profile_moeda);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching settings currency:', err);
+      }
+    };
+    fetchMoeda();
+  }, []);
+
+  const currencySymbol = profileMoeda === 'EUR' ? '€' : profileMoeda === 'USD' ? '$' : 'R$';
 
   const toggleAccordion = (id) => {
     setActiveAccordion(activeAccordion === id ? null : id);
@@ -113,7 +134,7 @@ export default function Services() {
               
               {/* Pricing row */}
               <div className="flex items-baseline gap-1 bg-zinc-950/40 p-3 rounded-lg border border-zinc-900">
-                <span className="text-2xl font-black text-white font-mono">R$ {srv.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="text-2xl font-black text-white font-mono">{currencySymbol} {srv.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 <span className="text-[10px] text-zinc-500 font-medium">/ {srv.time}</span>
               </div>
 

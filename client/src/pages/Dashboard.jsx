@@ -164,6 +164,7 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dashboard_monthly_goal: String(val) })
       });
+      window.dispatchEvent(new CustomEvent('dashboard_goal_updated', { detail: val }));
     } catch (err) {
       console.error('Erro ao salvar meta no servidor:', err);
     }

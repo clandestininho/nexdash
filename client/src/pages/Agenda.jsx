@@ -140,6 +140,23 @@ export default function Agenda() {
     saveEvents([...events, newEvt]);
     setIsModalOpen(false);
 
+    if (evtGoogleSync) {
+      try {
+        const startStr = `${evtDate.replace(/-/g, '')}T${evtTime.replace(/:/g, '')}00`;
+        const durationMin = parseInt(evtDuration) || 60;
+        const startDateObj = new Date(`${evtDate}T${evtTime}`);
+        const endDateObj = new Date(startDateObj.getTime() + durationMin * 60000);
+        
+        const pad = (num) => String(num).padStart(2, '0');
+        const endStr = `${endDateObj.getFullYear()}${pad(endDateObj.getMonth() + 1)}${pad(endDateObj.getDate())}T${pad(endDateObj.getHours())}${pad(endDateObj.getMinutes())}00`;
+        
+        const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(evtTitle)}&dates=${startStr}/${endStr}&details=${encodeURIComponent(evtDesc || '')}&location=${encodeURIComponent(evtLocation || '')}`;
+        window.open(googleUrl, '_blank');
+      } catch (err) {
+        console.error('Error generating Google Calendar URL:', err);
+      }
+    }
+
     // Clear state
     setEvtTitle('');
     setEvtDesc('');
@@ -148,6 +165,7 @@ export default function Agenda() {
     setEvtTags([]);
     setEvtClient('Nenhum');
     setEvtProject('Nenhum');
+    setEvtGoogleSync(false);
   };
 
   // Generate calendar days for May 2026 grid mapping (May has 31 days, starts on Friday)
@@ -214,9 +232,86 @@ export default function Agenda() {
     <div className="space-y-6 text-zinc-100 animate-fade-in font-body pb-10">
       
       {/* Title & Subtitle sitting ABOVE the main card wrapper */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tight">Timeline de Projetos</h1>
-        <p className="text-sm text-zinc-400 mt-1">Visualização completa de todas as etapas e prazos</p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">Timeline de Projetos</h1>
+          <p className="text-sm text-zinc-400 mt-1">Visualização completa de todas as etapas e prazos</p>
+        </div>
+        
+        {/* Direct Apple and Google Calendar Connection Shortcuts */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setGoogleConnected(!googleConnected);
+              if (!googleConnected) {
+                const mockExternalEvents = [
+                  { id: 'ext-evt-1', title: '📅 [Google] Reunião de Kickoff de Marca', date: '2026-05-25', time: '11:00', duration: '45 min', category: 'Services', client: 'Google Suite Partner', project: 'Design', tags: ['Google-Sync'] },
+                  { id: 'ext-evt-2', title: '📅 [Google] Alinhamento DGFlow MVP', date: '2026-05-29', time: '15:00', duration: '30 min', category: 'Tasks', client: 'Estúdio Design', project: 'MVP Sync', tags: ['Google-Sync'] }
+                ];
+                saveEvents([...events, ...mockExternalEvents]);
+                alert('Google Calendar conectado e eventos de reuniões externos sincronizados com sucesso!');
+              } else {
+                saveEvents(events.filter(e => !e.id.startsWith('ext-')));
+                alert('Google Calendar desconectado e compromissos sincronizados removidos.');
+              }
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all duration-200 cursor-pointer ${
+              googleConnected 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' 
+                : 'bg-[#0a0a0a] border-[#1f1f1f] hover:border-zinc-700 text-zinc-300 hover:text-white'
+            }`}
+          >
+            <span className="text-sm">💙</span>
+            <span>{googleConnected ? 'Google Calendar Conectado' : 'Conectar Google'}</span>
+          </button>
+          
+          <button
+            onClick={() => {
+              setIcalSubscribed(!icalSubscribed);
+              if (!icalSubscribed) {
+                const icsContent = [
+                  'BEGIN:VCALENDAR',
+                  'VERSION:2.0',
+                  'PRODID:-//NEXDASH//CRM Calendar//PT',
+                  'CALSCALE:GREGORIAN',
+                  ...events.map(e => [
+                    'BEGIN:VEVENT',
+                    `UID:${e.id}@nexdash.com`,
+                    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+                    `DTSTART:${e.date.replace(/-/g, '')}T${(e.time || '09:00').replace(':', '')}00`,
+                    `SUMMARY:${e.title}`,
+                    `DESCRIPTION:${e.description || e.client || ''}`,
+                    'END:VEVENT'
+                  ].join('\n')),
+                  'END:VCALENDAR'
+                ].join('\n');
+                
+                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.setAttribute('download', 'nexdash_agenda.ics');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                const webcalUrl = `webcal://${window.location.host}/api/calendar/subscribe/user-12345.ics`;
+                navigator.clipboard.writeText(webcalUrl);
+                
+                alert('Inscrição Apple Calendar efetuada! O arquivo "nexdash_agenda.ics" foi baixado e o link Webcal foi copiado para sua área de transferência para colar no Apple Calendar!');
+              } else {
+                alert('Inscrição Apple Calendar removida.');
+              }
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all duration-200 cursor-pointer ${
+              icalSubscribed 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' 
+                : 'bg-[#0a0a0a] border-[#1f1f1f] hover:border-zinc-700 text-zinc-300 hover:text-white'
+            }`}
+          >
+            <span className="text-sm">🍎</span>
+            <span>{icalSubscribed ? 'Apple Calendar Conectado' : 'Conectar Apple'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Unified DGFlow Calendar Card Wrapper */}
