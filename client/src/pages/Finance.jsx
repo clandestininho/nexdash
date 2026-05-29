@@ -31,23 +31,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Input } from '../components/ui/Input';
 
 const INITIAL_TRANSACTIONS = [
-  { id: 'tx-1', type: 'income', client: 'Marina Sousa', description: 'Identidade Visual - Entrada', category: 'Serviços', amount: 3500.00, date: '2026-05-20', status: 'received' },
-  { id: 'tx-2', type: 'expense', client: 'Google Suite', description: 'Assinatura Google Workspace', category: 'Ferramentas e Software', amount: 89.90, date: '2026-05-18', status: 'paid' },
-  { id: 'tx-3', type: 'income', client: 'Construtora Pernambuco', description: 'Consultoria Mensal', category: 'Consultoria', amount: 6000.00, date: '2026-05-15', status: 'received' },
-  { id: 'tx-4', type: 'expense', client: 'HostGator', description: 'Hospedagem Web VPS', category: 'Infraestrutura', amount: 249.00, date: '2026-05-10', status: 'paid' },
-  { id: 'tx-5', type: 'income', client: 'Carlos Silva', description: 'Social Media Integrada', category: 'Marketing e Tráfego', amount: 1500.00, date: '2026-05-05', status: 'pending' },
+  { id: 'tx-demo', type: 'income', client: 'Cliente Exemplo', description: 'Serviço de Demonstração', category: 'Serviços', amount: 1500.00, date: '2026-05-29', status: 'received' }
 ];
 
-const INITIAL_SUPPLIERS = [
-  { id: 'sup-1', name: 'Google Cloud Brasil', company: 'Google Inc.', doc: '06.990.590/0001-23', email: 'billing@google.com', phone: '(11) 99887-7665', obs: 'Cobranças mensais de servidores e Workspace' },
-  { id: 'sup-2', name: 'HostGator Host', company: 'Endurance Group', doc: '10.552.122/0001-40', email: 'suporte@hostgator.com.br', phone: '(48) 3221-8888', obs: 'Hospedagem anual dos portfólios' },
-  { id: 'sup-3', name: 'Adobe Systems', company: 'Adobe Inc.', doc: '02.441.900/0001-88', email: 'creative@adobe.com', phone: '0800-776-554', obs: 'Licenças mensais da Creative Cloud Suite' },
-];
+const INITIAL_SUPPLIERS = [];
 
 const INITIAL_CLIENTS_SUMMARY = [
-  { id: 'cli-1', name: 'Marina Sousa', email: 'marina@design.com', items: 3, total: 4500.00, status: 'approved' },
-  { id: 'cli-2', name: 'Construtora Pernambuco', email: 'contato@pernambuco.com', items: 12, total: 24000.00, status: 'approved' },
-  { id: 'cli-3', name: 'Carlos Silva', email: 'carlos@empresa.com.br', items: 2, total: 3000.00, status: 'pending' },
+  { id: 'cli-demo', name: 'Cliente Exemplo', email: 'exemplo@empresa.com', items: 1, total: 1500.00, status: 'approved' }
 ];
 
 const INITIAL_CATEGORIES_RECEIVABLE = ['Serviços', 'Produtos', 'Consultoria', 'Projetos', 'Assinaturas', 'Comissões', 'Outros'];

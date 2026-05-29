@@ -135,21 +135,7 @@ ______________________________________________
 {{Nome do Prestador}}
 CONTRATADO`;
 
-const INITIAL_PROPOSALS = [
-  {
-    id: 'prop-1',
-    projectName: 'Identidade Visual Milla & Lipe',
-    clientName: 'Marina Sousa',
-    amount: 3500.00,
-    status: 'approved',
-    date: '2026-05-20',
-    compiledText: DEFAULT_CONTRACT_TEMPLATE
-      .replace(/{{Nome do Prestador}}/g, 'Gleison')
-      .replace(/{{Nome do Cliente}}/g, 'Marina Sousa')
-      .replace(/{{Valor Final}}/g, 'R$ 3.500,00')
-      .replace(/{{Nome do Projeto}}/g, 'Identidade Visual Milla & Lipe')
-  }
-];
+const INITIAL_PROPOSALS = [];
 
 export default function Proposals() {
   const [proposals, setProposals] = useState([]);

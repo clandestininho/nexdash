@@ -31,17 +31,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 
-const INITIAL_PROJECTS = [
-  {
-    id: 'proj-1',
-    title: 'Identidade Visual Premium - Nexfy',
-    category: 'Branding',
-    videoUrl: 'https://youtube.com/watch?v=dQw4w9WgXcQ',
-    imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop',
-    externalLink: 'https://behance.net/nexfy',
-    description: 'Estudo de branding completo, incluindo logotipo responsivo, manual de marca completo de 80 páginas, tipografia exclusiva e assets para redes sociais.'
-  }
-];
+const INITIAL_PROJECTS = [];
 
 const INITIAL_MEETING_TYPES = [
   {

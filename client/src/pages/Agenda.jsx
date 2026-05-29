@@ -25,14 +25,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Input } from '../components/ui/Input';
 import { apiFetch } from '../lib/api';
 
-const INITIAL_EVENTS = [
-  { id: 'holiday-1', title: 'Dia do Trabalho', date: '2026-05-01', type: 'holiday', category: 'holiday' },
-  { id: 'holiday-2', title: 'Dia das Mães', date: '2026-05-10', type: 'holiday', category: 'holiday' },
-  { id: 'evt-1', title: 'Entrega Identidade Visual Marina', date: '2026-05-20', time: '14:00', duration: '60 min', category: 'Services', client: 'Marina Sousa', project: 'Identidade Visual', kanbanColumn: 'Revisão', tags: ['Urgente', 'Design'] },
-  { id: 'evt-2', title: 'Reunião Alinhamento Construtora', date: '2026-05-23', time: '10:00', duration: '30 min', category: 'Personal', client: 'Construtora Pernambuco', project: 'Consultoria', kanbanColumn: 'Em Andamento', tags: ['Melhoria'] },
-  { id: 'evt-3', title: 'Lançamento Faturamento Google', date: '2026-05-18', time: '09:00', duration: '15 min', category: 'Finance', client: 'Google Suite', project: 'Software', kanbanColumn: 'Concluído', tags: ['Bug'] },
-  { id: 'evt-4', title: 'Apresentação Protótipo Figma', date: '2026-05-27', time: '16:00', duration: '60 min', category: 'Tasks', client: 'Carlos Silva', project: 'Social Media', kanbanColumn: 'A Fazer', tags: ['Design'] },
-];
+const INITIAL_EVENTS = [];
 
 const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 

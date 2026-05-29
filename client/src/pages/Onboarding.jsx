@@ -443,7 +443,7 @@ export default function Onboarding({ onComplete }) {
           <img 
             src={formData.profile_avatar || formData.onboarding_logo} 
             alt="Brand Watermark" 
-            className="w-[95vh] h-[95vh] max-w-[950px] max-h-[950px] object-contain opacity-[0.02] filter brightness-0 invert pointer-events-none select-none" 
+            className="w-[45vh] h-[45vh] max-w-[400px] max-h-[400px] object-contain opacity-[0.015] pointer-events-none select-none" 
           />
         </div>
       )}

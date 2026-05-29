@@ -43,6 +43,32 @@ export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
   const [lostReasons, setLostReasons] = useState(null);
   const [isLostLoading, setIsLostLoading] = useState(true);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+
+  // Load and calculate faturamento (totalRevenue) from local transactions
+  useEffect(() => {
+    const calculateFaturamento = () => {
+      try {
+        const storedTxs = localStorage.getItem('dgflow_transactions');
+        if (storedTxs) {
+          const txs = JSON.parse(storedTxs);
+          const total = txs
+            .filter(tx => tx.type === 'income' && tx.status === 'received')
+            .reduce((sum, tx) => sum + tx.amount, 0);
+          setTotalRevenue(total);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar transações no dashboard:', err);
+      }
+    };
+
+    calculateFaturamento();
+    window.addEventListener('dgflow_transactions_updated', calculateFaturamento);
+    
+    return () => {
+      window.removeEventListener('dgflow_transactions_updated', calculateFaturamento);
+    };
+  }, []);
 
   // Load settings
   useEffect(() => {
@@ -263,7 +289,7 @@ export default function Dashboard() {
           <div className="text-center px-2">
             <span className="text-xs text-zinc-450 uppercase tracking-wider block font-bold">Atingido</span>
             <span className="text-base font-bold text-[#e13a40] font-mono">
-              {formatCurrency(metrics?.totalRevenue || 0)} ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / monthlyGoal) * 100) : 0}%)
+              {formatCurrency(totalRevenue)} ({totalRevenue ? Math.round((totalRevenue / monthlyGoal) * 100) : 0}%)
             </span>
           </div>
         </div>
@@ -277,8 +303,8 @@ export default function Dashboard() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="space-y-1 col-span-2">
               <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider block">Faturamento</span>
-              <h3 className="text-2xl font-bold text-white font-mono">{formatCurrency(metrics?.totalRevenue || 0)}</h3>
-              <p className="text-xs text-zinc-400 font-body">Meta: {formatCurrency(monthlyGoal)} ({metrics?.totalRevenue ? Math.round((metrics.totalRevenue / monthlyGoal) * 100) : 0}%)</p>
+              <h3 className="text-2xl font-bold text-white font-mono">{formatCurrency(totalRevenue)}</h3>
+              <p className="text-xs text-zinc-400 font-body">Meta: {formatCurrency(monthlyGoal)} ({totalRevenue ? Math.round((totalRevenue / monthlyGoal) * 100) : 0}%)</p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-orange-600/10 border border-orange-500/20 flex items-center justify-center shrink-0">
               <DollarSign className="h-5 w-5 text-[#e13a40]" />
