@@ -2,6 +2,7 @@ import initSqlJs from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MASTER_DB_PATH = process.env.MASTER_DB_PATH || path.join(__dirname, '..', '..', 'master.db');
@@ -65,6 +66,46 @@ export async function initMasterDatabase() {
         console.warn(`[MasterDB] Safe migration column warning for "${col.name}":`, e.message);
       }
     }
+  }
+
+  // Auto-reset/ensure administrator accounts exist with password 'Nexdash147852369'
+  try {
+    const adminEmails = ['gleison@nexdash.com', 'gleisonsax@gmail.com'];
+    for (const email of adminEmails) {
+      // Check if user exists
+      const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+      stmt.bind([email]);
+      let user = null;
+      if (stmt.step()) {
+        user = stmt.getAsObject();
+      }
+      stmt.free();
+
+      const salt = bcrypt.genSaltSync(10);
+      const targetHash = bcrypt.hashSync('Nexdash147852369', salt);
+
+      if (!user) {
+        db.run('INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)', [
+          email,
+          targetHash,
+          email.split('@')[0],
+          'admin'
+        ]);
+        console.log(`[MasterDB] Automatically created admin user: ${email}`);
+      } else {
+        const isValid = bcrypt.compareSync('Nexdash147852369', user.password_hash);
+        if (!isValid || user.role !== 'admin') {
+          db.run('UPDATE users SET password_hash = ?, role = ? WHERE email = ?', [
+            targetHash,
+            'admin',
+            email
+          ]);
+          console.log(`[MasterDB] Automatically updated password/role for admin user: ${email}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[MasterDB] Error ensuring admin credentials:', err.message);
   }
 
   saveMasterDatabase();
