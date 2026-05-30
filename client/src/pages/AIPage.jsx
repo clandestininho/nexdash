@@ -73,13 +73,17 @@ export default function AIPage() {
             try {
               const parsed = JSON.parse(legacyPrompts);
               setPrompts(parsed);
-              await apiFetch('/api/settings', {
+              const saveRes = await apiFetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ai_prompts: legacyPrompts })
               });
-              localStorage.removeItem('dgflow_ai_prompts');
-              console.log('[AIPage:Migration] Successfully migrated prompts to database settings!');
+              if (saveRes && saveRes.ok) {
+                localStorage.removeItem('dgflow_ai_prompts');
+                console.log('[AIPage:Migration] Successfully migrated prompts to database settings!');
+              } else {
+                console.error('[AIPage:Migration] Failed to migrate prompts to database settings:', saveRes ? saveRes.statusText : 'no response');
+              }
             } catch (err) {
               console.error('[AIPage:Migration] Error migrating prompts:', err);
             }
@@ -124,13 +128,17 @@ export default function AIPage() {
             try {
               const parsedCats = JSON.parse(legacyCategories);
               setCategories(parsedCats);
-              await apiFetch('/api/settings', {
+              const saveRes = await apiFetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ai_categories: legacyCategories })
               });
-              localStorage.removeItem('dgflow_ai_categories');
-              console.log('[AIPage:Migration] Successfully migrated categories to database settings!');
+              if (saveRes && saveRes.ok) {
+                localStorage.removeItem('dgflow_ai_categories');
+                console.log('[AIPage:Migration] Successfully migrated categories to database settings!');
+              } else {
+                console.error('[AIPage:Migration] Failed to migrate categories to database settings:', saveRes ? saveRes.statusText : 'no response');
+              }
             } catch (err) {
               console.error('[AIPage:Migration] Error migrating categories:', err);
             }
