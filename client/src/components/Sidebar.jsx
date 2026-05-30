@@ -316,7 +316,7 @@ export default function Sidebar() {
             {t('system')}
           </div>
           {renderLink('/log', t('classification_logs'), ClipboardList)}
-          {renderLink('/settings?tab=aprendizagem', t('learning'), GraduationCap)}
+          {renderLink('/aprendizagem', t('learning'), GraduationCap)}
           {renderLink('/settings', t('settings'), Settings)}
         </div>
 

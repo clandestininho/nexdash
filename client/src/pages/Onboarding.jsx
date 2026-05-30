@@ -446,15 +446,13 @@ export default function Onboarding({ onComplete }) {
     <main className="relative min-h-screen overflow-hidden bg-[#050505] text-[#f2f2f2] font-body lg:grid lg:grid-cols-2">
       
       {/* Dynamic Brand Logo Watermark */}
-      {(formData.profile_avatar || formData.onboarding_logo) && (
-        <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden animate-fade-in">
-          <img 
-            src={formData.profile_avatar || formData.onboarding_logo} 
-            alt="Brand Watermark" 
-            className="w-[75vh] h-[75vh] max-w-[700px] max-h-[700px] object-contain brightness-0 invert opacity-[0.055] pointer-events-none select-none" 
-          />
-        </div>
-      )}
+      <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden animate-fade-in">
+        <img 
+          src={formData.watermark_logo || formData.profile_avatar || formData.onboarding_logo || logo} 
+          alt="Brand Watermark" 
+          className="w-[75vh] h-[75vh] max-w-[700px] max-h-[700px] object-contain brightness-0 invert opacity-[0.055] pointer-events-none select-none" 
+        />
+      </div>
       
       {/* Left visual column - identical premium branding theme */}
       <div className="relative hidden h-full flex-col justify-between border-r border-[#1f1f1f] bg-gradient-to-br from-[#0c0c0e] via-[#050505] to-[#120a0b] p-12 lg:flex overflow-hidden">

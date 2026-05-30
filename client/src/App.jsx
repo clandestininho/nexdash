@@ -32,6 +32,8 @@ import TasksPage from './pages/TasksPage';
 import Briefings from './pages/Briefings';
 import RegisterLeadPublic from './pages/RegisterLeadPublic';
 import Onboarding from './pages/Onboarding';
+import Aprendizagem from './pages/Aprendizagem';
+import logo from './logo.png';
 
 // SaaS Admin imports
 import AdminSidebar from './components/AdminSidebar';
@@ -240,15 +242,13 @@ function AppLayout() {
       {/* Main Content */}
       <main className={`flex-1 ml-64 min-h-screen flex flex-col relative overflow-hidden transition-all duration-200 ${theme === 'light' ? 'bg-[#ffffff]' : 'bg-[#0a0a0a]'}`}>
         {/* Dynamic Brand Logo Watermark inside CRM */}
-        {userSettings && (userSettings.profile_avatar || userSettings.onboarding_logo) && (
-          <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
-            <img 
-              src={userSettings.profile_avatar || userSettings.onboarding_logo} 
-              alt="CRM Brand Watermark" 
-              className="w-[75vh] h-[75vh] max-w-[700px] max-h-[700px] object-contain brightness-0 invert opacity-[0.055] pointer-events-none select-none" 
-            />
-          </div>
-        )}
+        <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
+          <img 
+            src={(userSettings && (userSettings.watermark_logo || userSettings.profile_avatar || userSettings.onboarding_logo)) || logo} 
+            alt="CRM Brand Watermark" 
+            className="w-[75vh] h-[75vh] max-w-[700px] max-h-[700px] object-contain brightness-0 invert opacity-[0.055] pointer-events-none select-none" 
+          />
+        </div>
         {/* Global Header */}
         <Header />
 
@@ -284,6 +284,7 @@ function AppLayout() {
             <Route path="/connect" element={guard(<Connect />, '/connect')} />
             <Route path="/log" element={guard(<Log />, '/log')} />
             <Route path="/settings" element={guard(<Settings />, '/settings')} />
+            <Route path="/aprendizagem" element={guard(<Aprendizagem />, '/aprendizagem')} />
 
             {/* New premium routes */}
             <Route path="/dashboard" element={guard(<Dashboard />, '/dashboard')} />

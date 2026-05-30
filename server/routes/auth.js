@@ -391,13 +391,194 @@ router.get('/:provider(google|github|apple)', (req, res) => {
     }
     return res.redirect(authUrl);
   } else {
-    // In development or missing credentials, simulate visual consent with the primary admin address or mock address
-    logSecurityEvent('OAUTH_REDIRECT_MOCK', '', ip, `Redirecting to mock ${provider} OAuth`);
+    // In development or missing credentials, render a premium glassmorphic mock consent form
+    logSecurityEvent('OAUTH_REDIRECT_MOCK', '', ip, `Rendering interactive simulated ${provider} OAuth consent form`);
     
+    const capitalizedProvider = provider.charAt(0).toUpperCase() + provider.slice(1);
+    
+    // Choose simulated defaults
     const simulatedEmail = provider === 'google' ? 'gleisonsax@gmail.com' : `admin_${provider}@nexdash.com`;
-    const simulatedName = provider === 'google' ? 'Gleison Sax' : `Admin ${provider.charAt(0).toUpperCase() + provider.slice(1)}`;
-    const callbackUrl = `/api/auth/callback/${provider}?email=${encodeURIComponent(simulatedEmail)}&name=${encodeURIComponent(simulatedName)}`;
-    return res.redirect(callbackUrl);
+    const simulatedName = provider === 'google' ? 'Gleison Sax' : `Admin ${capitalizedProvider}`;
+
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Simulador de Conexão OAuth NEXDASH</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&display=swap" rel="stylesheet">
+        <style>
+          body {
+            background-color: #060608;
+            color: #f3f4f6;
+            font-family: 'Montserrat', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background-image: radial-gradient(circle at 50% 50%, #1e1112 0%, #060608 80%);
+          }
+          .glass-panel {
+            background: rgba(12, 12, 14, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            text-align: center;
+            box-sizing: border-box;
+            position: relative;
+          }
+          .glass-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 10%; right: 10%; height: 2px;
+            background: linear-gradient(90deg, transparent, #e13a40, transparent);
+          }
+          .logo-container {
+            margin-bottom: 24px;
+          }
+          .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(225, 58, 64, 0.1);
+            border: 1px solid rgba(225, 58, 64, 0.3);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            color: #e13a40;
+            font-size: 24px;
+            font-weight: 900;
+            box-shadow: 0 0 20px rgba(225, 58, 64, 0.2);
+          }
+          h2 {
+            font-size: 20px;
+            font-weight: 900;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #ffffff 0%, #a3a3a3 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+          }
+          .badge {
+            display: inline-block;
+            background: rgba(225, 58, 64, 0.1);
+            border: 1px solid rgba(225, 58, 64, 0.2);
+            color: #e13a40;
+            font-size: 8px;
+            font-weight: 900;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+          }
+          p.description {
+            font-size: 11px;
+            color: #9ca3af;
+            line-height: 1.6;
+            margin: 0 0 28px 0;
+          }
+          .form-group {
+            text-align: left;
+            margin-bottom: 20px;
+          }
+          label {
+            display: block;
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #6b7280;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+          }
+          input {
+            width: 100%;
+            background: #09090b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #ffffff;
+            font-family: inherit;
+            box-sizing: border-box;
+            outline: none;
+            transition: all 0.2s ease;
+          }
+          input:focus {
+            border-color: #e13a40;
+            box-shadow: 0 0 15px rgba(225, 58, 64, 0.15);
+            background: #0c0c0e;
+          }
+          .btn-submit {
+            width: 100%;
+            background: #e13a40;
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(225, 58, 64, 0.3);
+            margin-top: 10px;
+          }
+          .btn-submit:hover {
+            background: #c52f34;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(225, 58, 64, 0.4);
+          }
+          .btn-submit:active {
+            transform: translateY(0);
+          }
+          .footer-note {
+            font-size: 9px;
+            color: #4b5563;
+            margin-top: 24px;
+            line-height: 1.5;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="glass-panel">
+          <div class="logo-container">
+            <div class="logo-icon">N</div>
+          </div>
+          <h2>Conexão OAuth Simulado</h2>
+          <div class="badge">Ambiente de Demonstração</div>
+          <p class="description">
+            Insira suas informações abaixo para simular uma conexão segura de cadastro e login de terceiros via <strong>${capitalizedProvider}</strong>.
+          </p>
+          <form action="/api/auth/callback/${provider}" method="GET">
+            <div class="form-group">
+              <label>Nome Completo</label>
+              <input type="text" name="name" value="${simulatedName}" required placeholder="Ex: João Silva">
+            </div>
+            <div class="form-group">
+              <label>Endereço de E-mail</label>
+              <input type="email" name="email" value="${simulatedEmail}" required placeholder="Ex: joao@empresa.com">
+            </div>
+            <button type="submit" class="btn-submit">Autorizar e Conectar</button>
+          </form>
+          <div class="footer-note">
+            Este simulador garante que cada usuário em teste utilize seu próprio banco de dados SQLite isolado e visualize a jornada de Onboarding.
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
   }
 });
 

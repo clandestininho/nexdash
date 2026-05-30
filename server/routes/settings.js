@@ -13,6 +13,7 @@ import {
   getSetting,
 } from '../db/database.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { getAllUsers } from '../db/master.js';
 
 const router = Router();
 
@@ -75,11 +76,50 @@ router.get('/log', authenticateToken, (req, res) => {
   }
 });
 
+const getAdminUserId = () => {
+  try {
+    const users = getAllUsers();
+    let admin = users.find(u => u.email.toLowerCase() === 'gleisonsax@gmail.com');
+    if (!admin) admin = users.find(u => u.email.toLowerCase() === 'gleison@nexdash.com');
+    if (!admin) admin = users.find(u => u.role === 'admin');
+    return admin ? admin.id : null;
+  } catch (err) {
+    console.error('[Settings] Error finding admin user ID:', err);
+    return null;
+  }
+};
+
 // GET /api/settings — return all settings with masked API keys
 router.get('/settings', authenticateToken, (req, res) => {
   const userId = req.user.id;
   try {
     const settings = getSettings(userId);
+    const adminId = getAdminUserId();
+
+    // Fallback/merge learning_modules, ai_prompts, ai_categories and watermark_logo from admin
+    if (adminId && String(adminId) !== String(userId)) {
+      try {
+        const adminSettings = getSettings(adminId);
+        
+        // Modules and prompts are global settings managed by the admin
+        if (adminSettings.learning_modules) {
+          settings.learning_modules = adminSettings.learning_modules;
+        }
+        if (adminSettings.ai_prompts) {
+          settings.ai_prompts = adminSettings.ai_prompts;
+        }
+        if (adminSettings.ai_categories) {
+          settings.ai_categories = adminSettings.ai_categories;
+        }
+        
+        // Fallback watermark_logo if standard user has not configured their own
+        if (!settings.watermark_logo && adminSettings.watermark_logo) {
+          settings.watermark_logo = adminSettings.watermark_logo;
+        }
+      } catch (err) {
+        console.error(`[Settings:Fallback] Failed to load admin ${adminId} settings for fallback:`, err.message);
+      }
+    }
 
     // Mask the Anthropic API key for security
     if (settings.anthropic_api_key) {

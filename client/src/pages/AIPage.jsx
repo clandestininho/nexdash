@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Sparkles, Sliders, FileText, Palette, Check, AlertCircle, Play, Cpu, ShieldCheck, Plus, Search, Copy, Download, Trash2, Image, X, ChevronUp, ChevronDown, ChevronsUp } from 'lucide-react';
+import { Bot, Sparkles, Sliders, FileText, Palette, Check, AlertCircle, Play, Cpu, ShieldCheck, Plus, Search, Copy, Download, Trash2, Image, X, ChevronUp, ChevronDown, ChevronsUp, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -52,104 +52,128 @@ export default function AIPage() {
   const [generatedImages, setGeneratedImages] = useState({});
   const [copiedPromptId, setCopiedPromptId] = useState(null);
 
-  // Prompts Database State (Saves to localStorage)
-  const [prompts, setPrompts] = useState(() => {
-    const stored = localStorage.getItem('dgflow_ai_prompts');
-    let loaded = [];
-    if (stored) {
-      loaded = JSON.parse(stored);
-    } else {
-      loaded = [
-        {
-          id: '1',
-          title: 'Retrato Corporativo Ultra Profissional',
-          category: 'Tecnologia',
-          prompt: 'Professional corporate headshot of a dynamic business entrepreneur, confident smile, hyperrealistic, cinematic lighting, 8k, shot on Hasselblad, shallow depth of field, sleek executive suit, minimalist modern design studio background, corporate style.',
-          refImage: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80'
-        },
-        {
-          id: '2',
-          title: 'Equipe Criativa na Mesa de Reunião',
-          category: 'Agência',
-          prompt: 'Modern creative design agency team brainstorming around a minimalist wooden table, high-tech laptops open showing analytics, bright workspace with large glass windows, green plants, collaborative energetic atmosphere, candid photography, soft daylight.',
-          refImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=300&q=80'
-        },
-        {
-          id: '3',
-          title: 'Mockup de App em iPhone Premium',
-          category: 'Aplicativos',
-          prompt: 'A premium photorealistic mockup of a modern mobile banking application interface on an iPhone resting on a sleek dark slate table next to a warm cup of coffee, clean shadows, cozy morning lighting, professional technology branding visual.',
-          refImage: 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?auto=format&fit=crop&w=300&q=80'
-        },
-        {
-          id: '4',
-          title: 'Fotos de Joias de Luxo Conceito',
-          category: 'Varejo / Moda',
-          prompt: 'An elegant close-up product photo of a minimalist gold ring with a sparkling diamond, resting on a textured raw white marble block, warm golden hour rays casting artistic long shadows, high fashion editorial look, luxury branding.',
-          refImage: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=300&q=80'
+  // Prompts and Categories Database State (Saves to settings DB)
+  const [prompts, setPrompts] = useState([]);
+  const [categories, setCategories] = useState(['Tecnologia', 'Agência', 'Aplicativos', 'Varejo / Moda']);
+  const [loading, setLoading] = useState(true);
+
+  // Load prompts & categories from Settings DB on mount
+  useEffect(() => {
+    const fetchAIPrompts = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          
+          // Check for legacy localStorage data to automatically migrate to settings database
+          const legacyPrompts = localStorage.getItem('dgflow_ai_prompts');
+          const legacyCategories = localStorage.getItem('dgflow_ai_categories');
+          
+          if (legacyPrompts && !data.ai_prompts) {
+            try {
+              const parsed = JSON.parse(legacyPrompts);
+              setPrompts(parsed);
+              await apiFetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ai_prompts: legacyPrompts })
+              });
+              localStorage.removeItem('dgflow_ai_prompts');
+              console.log('[AIPage:Migration] Successfully migrated prompts to database settings!');
+            } catch (err) {
+              console.error('[AIPage:Migration] Error migrating prompts:', err);
+            }
+          } else if (data.ai_prompts) {
+            setPrompts(JSON.parse(data.ai_prompts));
+          } else {
+            // Default initial prompts
+            const defaultPrompts = [
+              {
+                id: '1',
+                title: 'Retrato Corporativo Ultra Profissional',
+                category: 'Tecnologia',
+                prompt: 'Professional corporate headshot of a dynamic business entrepreneur, confident smile, hyperrealistic, cinematic lighting, 8k, shot on Hasselblad, shallow depth of field, sleek executive suit, minimalist modern design studio background, corporate style.',
+                refImage: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80'
+              },
+              {
+                id: '2',
+                title: 'Equipe Criativa na Mesa de Reunião',
+                category: 'Agência',
+                prompt: 'Modern creative design agency team brainstorming around a minimalist wooden table, high-tech laptops open showing analytics, bright workspace with large glass windows, green plants, collaborative energetic atmosphere, candid photography, soft daylight.',
+                refImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=300&q=80'
+              },
+              {
+                id: '3',
+                title: 'Mockup de App em iPhone Premium',
+                category: 'Aplicativos',
+                prompt: 'A premium photorealistic mockup of a modern mobile banking application interface on an iPhone resting on a sleek dark slate table next to a warm cup of coffee, clean shadows, cozy morning lighting, professional technology branding visual.',
+                refImage: 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?auto=format&fit=crop&w=300&q=80'
+              },
+              {
+                id: '4',
+                title: 'Fotos de Joias de Luxo Conceito',
+                category: 'Varejo / Moda',
+                prompt: 'An elegant close-up product photo of a minimalist gold ring with a sparkling diamond, resting on a textured raw white marble block, warm golden hour rays casting artistic long shadows, high fashion editorial look, luxury branding.',
+                refImage: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=300&q=80'
+              }
+            ];
+            setPrompts(defaultPrompts);
+          }
+
+          if (legacyCategories && !data.ai_categories) {
+            try {
+              const parsedCats = JSON.parse(legacyCategories);
+              setCategories(parsedCats);
+              await apiFetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ai_categories: legacyCategories })
+              });
+              localStorage.removeItem('dgflow_ai_categories');
+              console.log('[AIPage:Migration] Successfully migrated categories to database settings!');
+            } catch (err) {
+              console.error('[AIPage:Migration] Error migrating categories:', err);
+            }
+          } else if (data.ai_categories) {
+            setCategories(JSON.parse(data.ai_categories));
+          }
         }
-      ];
-    }
-
-    // Auto-sanitize spelling variants/typos: 'Produtos', 'Podutos', 'produtos', 'podutos' -> 'Produto'
-    let changed = false;
-    const sanitized = loaded.map(p => {
-      if (p.category === 'Produtos' || p.category === 'Podutos' || p.category === 'produtos' || p.category === 'podutos') {
-        changed = true;
-        return { ...p, category: 'Produto' };
+      } catch (err) {
+        console.error('Failed to load prompts from API settings:', err);
+      } finally {
+        setLoading(false);
       }
-      return p;
-    });
+    };
+    fetchAIPrompts();
+  }, []);
 
-    if (changed) {
-      localStorage.setItem('dgflow_ai_prompts', JSON.stringify(sanitized));
-    }
-    return sanitized;
-  });
-
-  // Prompt Categories State (Saves to localStorage under 'dgflow_ai_categories')
-  const [categories, setCategories] = useState(() => {
-    const stored = localStorage.getItem('dgflow_ai_categories');
-    let loadedCats = ['Tecnologia', 'Agência', 'Aplicativos', 'Varejo / Moda'];
-    if (stored) {
-      try {
-        loadedCats = JSON.parse(stored);
-      } catch (e) {
-        console.error('Failed to parse categories from localStorage:', e);
-      }
-    }
-    
-    // Also merge with any categories from stored prompts to make sure nothing is lost
-    const storedPrompts = localStorage.getItem('dgflow_ai_prompts');
-    let promptCats = [];
-    if (storedPrompts) {
-      try {
-        const parsedPrompts = JSON.parse(storedPrompts);
-        promptCats = parsedPrompts.map(p => p.category);
-      } catch (e) {}
-    }
-    
-    const merged = Array.from(new Set([...loadedCats, ...promptCats]));
-    localStorage.setItem('dgflow_ai_categories', JSON.stringify(merged));
-    return merged;
-  });
-
-  const saveCategories = (updatedCats) => {
+  const saveCategories = async (updatedCats) => {
     try {
       setCategories(updatedCats);
-      localStorage.setItem('dgflow_ai_categories', JSON.stringify(updatedCats));
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ai_categories: JSON.stringify(updatedCats)
+        })
+      });
     } catch (error) {
-      console.error('Failed to save categories to localStorage:', error);
+      console.error('Failed to save categories:', error);
     }
   };
 
-  const savePrompts = (updatedList) => {
+  const savePrompts = async (updatedList) => {
     try {
       setPrompts(updatedList);
-      localStorage.setItem('dgflow_ai_prompts', JSON.stringify(updatedList));
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ai_prompts: JSON.stringify(updatedList)
+        })
+      });
     } catch (error) {
-      console.error('Failed to save prompts to localStorage:', error);
-      alert('Erro: Limite de armazenamento do navegador excedido! Por favor, reduza o tamanho das fotos enviadas ou remova alguns prompts antigos.');
+      console.error('Failed to save prompts:', error);
     }
   };
 
@@ -731,102 +755,113 @@ export default function AIPage() {
           </div>
 
           {/* Prompts Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredPrompts.map((p) => {
-              const generatedUrl = generatedImages[p.id];
-              const isGenerating = generatingPromptId === p.id;
-              
-              return (
-                <div key={p.id} className="bg-[#0c0c0e] border border-zinc-900 rounded-xl p-5 shadow-lg flex flex-col justify-between gap-4 hover:border-zinc-800 transition-all relative overflow-hidden group">
-                  <div className="space-y-3.5">
-                    {/* Header: Title and category */}
-                    <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <span className="text-[10px] font-bold text-[#e13a40] bg-[#e13a40]/10 px-2 py-0.5 rounded border border-[#e13a40]/20 uppercase">
-                          {p.category}
-                        </span>
-                        <h4 className="text-sm font-bold text-white mt-1.5">{p.title}</h4>
-                      </div>
-                      
-                      {userRole === 'admin' && (
-                        <div className="flex items-center gap-1.5 shrink-0 bg-zinc-950/40 p-1 rounded-lg border border-zinc-900/60">
-                          <button
-                            onClick={() => handleMoveToTop(p.id)}
-                            className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
-                            title="Mover para o Topo"
-                          >
-                            <ChevronsUp className="h-4 w-4 text-[#e13a40]" />
-                          </button>
-                          <button
-                            onClick={() => handleMovePrompt(p.id, 'up')}
-                            className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
-                            title="Mover para Cima"
-                          >
-                            <ChevronUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleMovePrompt(p.id, 'down')}
-                            className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
-                            title="Mover para Baixo"
-                          >
-                            <ChevronDown className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeletePrompt(p.id)}
-                            className="p-1 text-zinc-600 hover:text-[#e13a40] transition-colors cursor-pointer border-l border-zinc-900 pl-1.5"
-                            title="Excluir prompt"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-3 text-zinc-500 w-full col-span-2">
+              <Loader2 className="h-8 w-8 animate-spin text-[#e13a40]" />
+              <span className="text-xs font-semibold uppercase tracking-wider font-mono">Sincronizando Biblioteca de Prompts...</span>
+            </div>
+          ) : filteredPrompts.length === 0 ? (
+            <div className="py-20 text-center text-xs text-zinc-500 font-semibold uppercase tracking-wider w-full col-span-2 border border-dashed border-zinc-800 rounded-2xl bg-zinc-950/20">
+              Nenhum prompt encontrado nesta categoria.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+              {filteredPrompts.map((p) => {
+                const generatedUrl = generatedImages[p.id];
+                const isGenerating = generatingPromptId === p.id;
+                
+                return (
+                  <div key={p.id} className="bg-[#0c0c0e] border border-zinc-900 rounded-xl p-5 shadow-lg flex flex-col justify-between gap-4 hover:border-zinc-800 transition-all relative overflow-hidden group">
+                    <div className="space-y-3.5">
+                      {/* Header: Title and category */}
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <span className="text-[10px] font-bold text-[#e13a40] bg-[#e13a40]/10 px-2 py-0.5 rounded border border-[#e13a40]/20 uppercase">
+                            {p.category}
+                          </span>
+                          <h4 className="text-sm font-bold text-white mt-1.5">{p.title}</h4>
                         </div>
-                      )}
-                    </div>
+                        
+                        {userRole === 'admin' && (
+                          <div className="flex items-center gap-1.5 shrink-0 bg-zinc-950/40 p-1 rounded-lg border border-zinc-900/60">
+                            <button
+                              onClick={() => handleMoveToTop(p.id)}
+                              className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                              title="Mover para o Topo"
+                            >
+                              <ChevronsUp className="h-4 w-4 text-[#e13a40]" />
+                            </button>
+                            <button
+                              onClick={() => handleMovePrompt(p.id, 'up')}
+                              className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                              title="Mover para Cima"
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleMovePrompt(p.id, 'down')}
+                              className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                              title="Mover para Baixo"
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePrompt(p.id)}
+                              className="p-1 text-zinc-600 hover:text-[#e13a40] transition-colors cursor-pointer border-l border-zinc-900 pl-1.5"
+                              title="Excluir prompt"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Reference Image Preview - Full Width & 1:1 Aspect Ratio (Square) */}
-                    <div className="space-y-1">
-                      <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Exemplo de Referência</span>
-                      <div className="w-full rounded-xl border border-zinc-900 overflow-hidden relative bg-zinc-950 flex items-center justify-center" style={{ aspectRatio: '1 / 1' }}>
-                        <img 
-                          src={p.refImage} 
-                          alt="Reference" 
-                          style={{ objectPosition: `center ${p.refImageCropY || '50%'}` }}
-                          className="w-full h-full object-cover group-hover:scale-102 transition-all duration-300"
-                        />
+                      {/* Reference Image Preview - Full Width & 1:1 Aspect Ratio (Square) */}
+                      <div className="space-y-1">
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Exemplo de Referência</span>
+                        <div className="w-full rounded-xl border border-zinc-900 overflow-hidden relative bg-zinc-950 flex items-center justify-center" style={{ aspectRatio: '1 / 1' }}>
+                          <img 
+                            src={p.refImage} 
+                            alt="Reference" 
+                            style={{ objectPosition: `center ${p.refImageCropY || '50%'}` }}
+                            className="w-full h-full object-cover group-hover:scale-102 transition-all duration-300"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Prompt Text Box */}
+                      <div className="p-3 bg-zinc-950 border border-zinc-900 rounded-xl space-y-1.5 relative">
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Prompt de Comando</span>
+                        <div className="max-h-24 overflow-y-auto scrollbar-thin pr-1">
+                          <p className="text-[10px] text-zinc-350 leading-relaxed font-body font-medium select-all">{p.prompt}</p>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Prompt Text Box */}
-                    <div className="p-3 bg-zinc-950 border border-zinc-900 rounded-xl space-y-1.5 relative">
-                      <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Prompt de Comando</span>
-                      <div className="max-h-24 overflow-y-auto scrollbar-thin pr-1">
-                        <p className="text-[10px] text-zinc-350 leading-relaxed font-body font-medium select-all">{p.prompt}</p>
-                      </div>
+                    {/* Actions footer */}
+                    <div className="pt-2 border-t border-zinc-900/50">
+                      <button
+                        onClick={() => handleCopyPrompt(p.id, p.prompt)}
+                        className="w-full py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-semibold hover:text-white transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        {copiedPromptId === p.id ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            <span className="text-emerald-400">Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>Copiar Prompt</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
-
-                  {/* Actions footer */}
-                  <div className="pt-2 border-t border-zinc-900/50">
-                    <button
-                      onClick={() => handleCopyPrompt(p.id, p.prompt)}
-                      className="w-full py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-semibold hover:text-white transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      {copiedPromptId === p.id ? (
-                        <>
-                          <Check className="h-3.5 w-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copiado!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3.5 w-3.5" />
-                          <span>Copiar Prompt</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Admin Add Prompt Modal */}
           {isAdminModalOpen && (

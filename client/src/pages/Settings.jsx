@@ -66,8 +66,7 @@ const TABS = [
   { id: 'notificacoes', label: 'Notificações', icon: Bell },
   { id: 'automacoes', label: 'Automações', icon: Sliders },
   { id: 'integracoes', label: 'Integrações', icon: Share2 },
-  { id: 'conteudos', label: 'Conteúdos', icon: Folder },
-  { id: 'aprendizagem', label: 'Aprendizagem', icon: GraduationCap }
+  { id: 'conteudos', label: 'Conteúdos', icon: Folder }
 ];
 
 export default function Settings() {
@@ -174,7 +173,14 @@ export default function Settings() {
   };
 
   // PERFIL Tab states
-  const [nome, setNome] = useState('Gleison');
+  const [nome, setNome] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user'));
+      return u?.name || 'Gleison';
+    } catch {
+      return 'Gleison';
+    }
+  });
   const [empresa, setEmpresa] = useState('Nexfy');
   const [telefone, setTelefone] = useState('+55 (18) 99705-3072');
   const [cnpjCpf, setCnpjCpf] = useState('000.000.000-00');
@@ -187,7 +193,14 @@ export default function Settings() {
   const [pais, setPais] = useState('BR');
   const [moeda, setMoeda] = useState('BRL');
   const [idioma, setIdioma] = useState('pt-BR');
-  const [email, setEmail] = useState('gleisonsax@gmail.com');
+  const [email, setEmail] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user'));
+      return u?.email || 'gleisonsax@gmail.com';
+    } catch {
+      return 'gleisonsax@gmail.com';
+    }
+  });
   const [avatarPreview, setAvatarPreview] = useState(null);
 
   // Payment integration states
@@ -204,6 +217,7 @@ export default function Settings() {
 
   // APARÊNCIA Tab states
   const [faviconUrl, setFaviconUrl] = useState('');
+  const [watermarkLogoUrl, setWatermarkLogoUrl] = useState('');
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showPortalModal, setShowPortalModal] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState('padrao'); // padrao, midnight, amoled, etc.
@@ -305,7 +319,14 @@ export default function Settings() {
         const settingsRes = await apiFetch('/api/settings');
         const settings = await settingsRes.json();
 
-        if (settings.profile_nome) setNome(settings.profile_nome);
+        if (settings.profile_nome) {
+          setNome(settings.profile_nome);
+        } else {
+          try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            if (u?.name) setNome(u.name);
+          } catch {}
+        }
         if (settings.profile_empresa) setEmpresa(settings.profile_empresa);
         if (settings.profile_telefone) setTelefone(settings.profile_telefone);
         if (settings.profile_cnpj_cpf) setCnpjCpf(settings.profile_cnpj_cpf);
@@ -318,8 +339,17 @@ export default function Settings() {
         if (settings.profile_pais) setPais(settings.profile_pais);
         if (settings.profile_moeda) setMoeda(settings.profile_moeda);
         if (settings.profile_idioma) setIdioma(settings.profile_idioma);
-        if (settings.profile_email) setEmail(settings.profile_email);
+        if (settings.profile_email) {
+          setEmail(settings.profile_email);
+        } else {
+          try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            if (u?.email) setEmail(u.email);
+          } catch {}
+        }
         if (settings.profile_avatar) setAvatarPreview(settings.profile_avatar);
+        if (settings.favicon_logo) setFaviconUrl(settings.favicon_logo);
+        if (settings.watermark_logo) setWatermarkLogoUrl(settings.watermark_logo);
         if (settings.asaas_api_key) setAsaasKey(settings.asaas_api_key);
         if (settings.mercadopago_api_key) setMercadopagoKey(settings.mercadopago_api_key);
         if (settings.stripe_api_key) setStripeKey(settings.stripe_api_key);
@@ -351,6 +381,8 @@ export default function Settings() {
         profile_idioma: idioma,
         profile_email: email,
         profile_avatar: avatarPreview || '',
+        favicon_logo: faviconUrl,
+        watermark_logo: watermarkLogoUrl,
         asaas_api_key: asaasKey,
         mercadopago_api_key: mercadopagoKey,
         stripe_api_key: stripeKey,
@@ -944,6 +976,82 @@ export default function Settings() {
                       <Upload className="h-3.5 w-3.5" />
                       <span>Upload</span>
                     </button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Marca d'Água Global Card */}
+            <Card className="bg-[#0c0c0e] border-[#1f1f23] text-white">
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Compass className="h-5 w-5 text-[#e13a40]" />
+                  <div>
+                    <h3 className="text-sm font-bold">Marca d'Água do Fundo</h3>
+                    <p className="text-[10px] text-zinc-500 font-body">
+                      Substitua o logotipo padrão do NEXDASH exibido discretamente ao fundo dos seus painéis corporativos.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <div className="rounded-lg bg-zinc-950/80 border border-zinc-900 p-3 text-[10px] text-zinc-400 font-body leading-relaxed flex items-start gap-2.5">
+                    <span className="text-[#e13a40]">⚠️</span>
+                    <span>
+                      <strong>Recomendação Premium:</strong> Utilize uma imagem em formato <strong>PNG com fundo transparente</strong>. Imagens com fundo sólido gerarão blocos indesejados sobrepostos aos cards da plataforma.
+                    </span>
+                  </div>
+
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase block">URL OU UPLOAD</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="https://... ou faça upload"
+                      value={watermarkLogoUrl}
+                      onChange={(e) => setWatermarkLogoUrl(e.target.value)}
+                      className="bg-zinc-950 text-white text-xs px-3 py-2 rounded-xl border border-zinc-900 outline-none flex-1"
+                    />
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        id="watermark-upload-input"
+                        className="hidden" 
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            setSaveStatus('saving');
+                            // Compress image
+                            const compressedBlob = await compressImage(file, 800, 800, 0.8);
+                            const compressedFile = new File([compressedBlob], file.name, { type: 'image/png' });
+                            
+                            const uploadRes = await apiUpload('/api/settings/upload', compressedFile);
+                            const data = await uploadRes.json();
+                            if (data.url) {
+                              setWatermarkLogoUrl(data.url);
+                              setSaveStatus('success');
+                              alert('Upload concluído com sucesso! Clique em "Salvar Configurações" no rodapé para ativar.');
+                            } else {
+                              alert('Erro no upload.');
+                              setSaveStatus('error');
+                            }
+                          } catch (err) {
+                            console.error(err);
+                            alert('Erro ao fazer upload do arquivo.');
+                            setSaveStatus('error');
+                          }
+                          setTimeout(() => setSaveStatus(null), 3000);
+                        }}
+                      />
+                      <button
+                        onClick={() => document.getElementById('watermark-upload-input').click()}
+                        className="py-2.5 px-4 rounded-xl border border-zinc-800 hover:bg-zinc-900 text-zinc-400 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>Upload</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
