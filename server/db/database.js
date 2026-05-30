@@ -19,6 +19,92 @@ export async function initDatabase() {
   // Also initialize master user credentials database
   await initMasterDatabase();
   console.log('[Database] SQL.js engine and Master database successfully initialized.');
+
+  // Auto-Recovery for Lost Admin Prompts and Categories
+  try {
+    const dbDir = DB_DIR;
+    const files = fs.readdirSync(dbDir);
+    const dbFiles = files.filter(f => f.startsWith('crm_user_') && f.endsWith('.db'));
+    
+    let recoveredPrompts = null;
+    let recoveredCategories = null;
+    let sourceDbFile = null;
+
+    console.log('[Recovery] Scanning isolated databases for custom prompts library...');
+
+    for (const dbFile of dbFiles) {
+      const dbPath = path.join(dbDir, dbFile);
+      try {
+        const buffer = fs.readFileSync(dbPath);
+        const tempDb = new SQL.Database(buffer);
+        
+        let hasSettingsTable = false;
+        const checkStmt = tempDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'");
+        if (checkStmt.step()) {
+          hasSettingsTable = true;
+        }
+        checkStmt.free();
+
+        if (hasSettingsTable) {
+          const stmt = tempDb.prepare("SELECT key, value FROM settings WHERE key IN ('ai_prompts', 'ai_categories')");
+          let promptsVal = null;
+          let categoriesVal = null;
+          while (stmt.step()) {
+            const row = stmt.getAsObject();
+            if (row.key === 'ai_prompts') promptsVal = row.value;
+            if (row.key === 'ai_categories') categoriesVal = row.value;
+          }
+          stmt.free();
+
+          if (promptsVal) {
+            const parsed = JSON.parse(promptsVal);
+            if (Array.isArray(parsed) && parsed.length > 4) {
+              recoveredPrompts = promptsVal;
+              recoveredCategories = categoriesVal;
+              sourceDbFile = dbFile;
+              console.log(`[Recovery] Found custom library with ${parsed.length} prompts in ${dbFile}!`);
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        // Safe skip for individual DB errors
+      }
+    }
+
+    if (recoveredPrompts) {
+      const targetUserIds = ['1', '5']; // 1 = gleisonsax@gmail.com, 5 = gleison@nexdash.com
+      console.log(`[Recovery] Propagating prompts from ${sourceDbFile} to administrator databases: User IDs ${targetUserIds.join(', ')}...`);
+      for (const tId of targetUserIds) {
+        const targetDbPath = path.join(dbDir, `crm_user_${tId}.db`);
+        let targetDb;
+        try {
+          if (fs.existsSync(targetDbPath)) {
+            const buffer = fs.readFileSync(targetDbPath);
+            targetDb = new SQL.Database(buffer);
+          } else {
+            targetDb = new SQL.Database();
+          }
+
+          targetDb.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
+          targetDb.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_prompts', ?)`, [recoveredPrompts]);
+          if (recoveredCategories) {
+            targetDb.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_categories', ?)`, [recoveredCategories]);
+          }
+          
+          const data = targetDb.export();
+          fs.writeFileSync(targetDbPath, Buffer.from(data));
+          console.log(`[Recovery] Successfully recovered prompts to crm_user_${tId}.db!`);
+        } catch (targetErr) {
+          console.error(`[Recovery] Error saving to crm_user_${tId}.db:`, targetErr.message);
+        }
+      }
+    } else {
+      console.log('[Recovery] No custom prompts library found (>4 items). All templates are safe.');
+    }
+  } catch (err) {
+    console.error('[Recovery] Prompts recovery error:', err.message);
+  }
 }
 
 /**
