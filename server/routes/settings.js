@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import initSqlJs from 'sql.js';
 import {
   getSettings,
   saveSetting,
@@ -48,6 +49,73 @@ router.post('/settings/upload', authenticateToken, upload.single('file'), (req, 
   } catch (error) {
     console.error('[Route:Settings] Upload error:', error.message);
     res.status(500).json({ error: 'Falha ao processar upload do arquivo.' });
+  }
+});
+
+
+// GET /api/debug/databases - Diagnostico publico para localizar dados de prompts
+router.get('/debug/databases', async (req, res) => {
+  try {
+    const SQL = await initSqlJs();
+    const dbDir = process.env.DB_DIR || path.join(process.cwd());
+    const files = fs.readdirSync(dbDir);
+    const dbFiles = files.filter(f => f.startsWith('crm_user_') && f.endsWith('.db'));
+    
+    const results = [];
+    for (const dbFile of dbFiles) {
+      const dbPath = path.join(dbDir, dbFile);
+      try {
+        const buffer = fs.readFileSync(dbPath);
+        const tempDb = new SQL.Database(buffer);
+        
+        let hasSettingsTable = false;
+        const checkStmt = tempDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'");
+        if (checkStmt.step()) {
+          hasSettingsTable = true;
+        }
+        checkStmt.free();
+
+        let promptsCount = 0;
+        let promptsList = [];
+        let categories = [];
+
+        if (hasSettingsTable) {
+          const stmt = tempDb.prepare("SELECT key, value FROM settings WHERE key IN ('ai_prompts', 'ai_categories')");
+          while (stmt.step()) {
+            const row = stmt.getAsObject();
+            if (row.key === 'ai_prompts' && row.value) {
+              const parsed = JSON.parse(row.value);
+              promptsCount = parsed.length;
+              promptsList = parsed.map(p => ({ id: p.id, title: p.title, category: p.category }));
+            }
+            if (row.key === 'ai_categories' && row.value) {
+              categories = JSON.parse(row.value);
+            }
+          }
+          stmt.free();
+        }
+
+        results.push({
+          dbFile,
+          hasSettingsTable,
+          promptsCount,
+          promptsList,
+          categories
+        });
+      } catch (err) {
+        results.push({
+          dbFile,
+          error: err.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      databases: results
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
