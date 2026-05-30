@@ -76,17 +76,36 @@ router.get('/log', authenticateToken, (req, res) => {
   }
 });
 
-const getAdminUserId = () => {
+const getGlobalAdminSetting = (key, excludeUserId) => {
   try {
     const users = getAllUsers();
-    let admin = users.find(u => u.email.toLowerCase() === 'gleisonsax@gmail.com');
-    if (!admin) admin = users.find(u => u.email.toLowerCase() === 'gleison@nexdash.com');
-    if (!admin) admin = users.find(u => u.role === 'admin');
-    return admin ? admin.id : null;
+    // Prioritize gleison@nexdash.com, then gleisonsax@gmail.com, then any other admin
+    const adminEmails = ['gleison@nexdash.com', 'gleisonsax@gmail.com'];
+    
+    const admins = users.filter(u => u.role === 'admin' || adminEmails.includes(u.email.toLowerCase()));
+    
+    // Sort so prioritize admins are checked first
+    admins.sort((a, b) => {
+      const aEmail = a.email.toLowerCase();
+      const bEmail = b.email.toLowerCase();
+      if (aEmail === 'gleison@nexdash.com') return -1;
+      if (bEmail === 'gleison@nexdash.com') return 1;
+      if (aEmail === 'gleisonsax@gmail.com') return -1;
+      if (bEmail === 'gleisonsax@gmail.com') return 1;
+      return 0;
+    });
+
+    for (const admin of admins) {
+      if (String(admin.id) === String(excludeUserId)) continue;
+      const settings = getSettings(admin.id);
+      if (settings && settings[key]) {
+        return settings[key];
+      }
+    }
   } catch (err) {
-    console.error('[Settings] Error finding admin user ID:', err);
-    return null;
+    console.error(`[Settings:GlobalFallback] Error getting global setting ${key}:`, err.message);
   }
+  return null;
 };
 
 // GET /api/settings — return all settings with masked API keys
@@ -94,30 +113,15 @@ router.get('/settings', authenticateToken, (req, res) => {
   const userId = req.user.id;
   try {
     const settings = getSettings(userId);
-    const adminId = getAdminUserId();
 
-    // Fallback/merge learning_modules, ai_prompts, ai_categories and watermark_logo from admin
-    if (adminId && String(adminId) !== String(userId)) {
-      try {
-        const adminSettings = getSettings(adminId);
-        
-        // Modules and prompts are global settings managed by the admin
-        if (adminSettings.learning_modules) {
-          settings.learning_modules = adminSettings.learning_modules;
+    // Fallback/merge learning_modules, ai_prompts, ai_categories and watermark_logo from other admins if empty in this account
+    const globalKeys = ['learning_modules', 'ai_prompts', 'ai_categories', 'watermark_logo'];
+    for (const key of globalKeys) {
+      if (!settings[key]) {
+        const val = getGlobalAdminSetting(key, userId);
+        if (val) {
+          settings[key] = val;
         }
-        if (adminSettings.ai_prompts) {
-          settings.ai_prompts = adminSettings.ai_prompts;
-        }
-        if (adminSettings.ai_categories) {
-          settings.ai_categories = adminSettings.ai_categories;
-        }
-        
-        // Fallback watermark_logo if standard user has not configured their own
-        if (!settings.watermark_logo && adminSettings.watermark_logo) {
-          settings.watermark_logo = adminSettings.watermark_logo;
-        }
-      } catch (err) {
-        console.error(`[Settings:Fallback] Failed to load admin ${adminId} settings for fallback:`, err.message);
       }
     }
 
