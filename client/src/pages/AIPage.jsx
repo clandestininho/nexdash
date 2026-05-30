@@ -35,8 +35,8 @@ export default function AIPage() {
   
   // Modals and Form States
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [newPromptTitle, setNewPromptTitle] = useState('');
-  const [newPromptCategory, setNewPromptCategory] = useState('Tecnologia');
+  const [newPromptTitle, setNewPromptTitle] = useState('Foto Profissional');
+  const [newPromptCategory, setNewPromptCategory] = useState('Foto de Estudio');
   const [newPromptText, setNewPromptText] = useState('');
   const [newPromptRefImage, setNewPromptRefImage] = useState('');
   
@@ -47,6 +47,11 @@ export default function AIPage() {
   // Custom Cropping States (focal vertical alignment Y percentage)
   const [newPromptCropY, setNewPromptCropY] = useState(50);
 
+  // Bulk Import States
+  const [isBulkImport, setIsBulkImport] = useState(false);
+  const [bulkItems, setBulkItems] = useState([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+
   // Generation Dynamic States
   const [generatingPromptId, setGeneratingPromptId] = useState(null);
   const [generatedImages, setGeneratedImages] = useState({});
@@ -54,7 +59,7 @@ export default function AIPage() {
 
   // Prompts and Categories Database State (Saves to settings DB)
   const [prompts, setPrompts] = useState([]);
-  const [categories, setCategories] = useState(['Tecnologia', 'Agência', 'Aplicativos', 'Varejo / Moda']);
+  const [categories, setCategories] = useState(['Foto de Estudio', 'Produto', 'Tecnologia', 'Agência', 'Aplicativos', 'Varejo / Moda']);
   const [loading, setLoading] = useState(true);
 
   // Load prompts & categories from Settings DB on mount
@@ -260,14 +265,125 @@ export default function AIPage() {
     }
     
     // Reset Form
-    setNewPromptTitle('');
+    setNewPromptTitle('Foto Profissional');
     setNewPromptText('');
     setNewPromptRefImage('');
-    setNewPromptCategory('Tecnologia');
+    setNewPromptCategory('Foto de Estudio');
     setIsCustomCategory(false);
     setCustomCategoryName('');
     setNewPromptCropY(50);
     setIsAdminModalOpen(false);
+  };
+
+  const handleBulkFilesChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setBulkUploading(true);
+    
+    // Create bulk items structure
+    const newItems = files.map((file, index) => ({
+      id: 'bulk-' + Date.now() + '-' + index + '-' + Math.round(Math.random() * 1e4),
+      title: 'Foto Profissional',
+      prompt: '',
+      refImage: '',
+      cropY: 50,
+      uploading: true,
+      error: null
+    }));
+
+    setBulkItems(prev => [...prev, ...newItems]);
+
+    // Process and upload each file in parallel
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const targetId = newItems[i].id;
+      
+      try {
+        // Compress image before uploading
+        const compressedBlob = await compressImage(file, 1200, 1200, 0.9);
+        const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+        
+        // Upload to server
+        const res = await apiUpload('/api/settings/upload', compressedFile);
+        const data = await res.json();
+        
+        if (data.success && data.url) {
+          setBulkItems(prev => prev.map(item => 
+            item.id === targetId 
+              ? { ...item, refImage: data.url, uploading: false } 
+              : item
+          ));
+        } else {
+          throw new Error('Falha no upload.');
+        }
+      } catch (err) {
+        console.error('[BulkUpload] Error:', err);
+        setBulkItems(prev => prev.map(item => 
+          item.id === targetId 
+            ? { ...item, uploading: false, error: err.message || 'Erro ao enviar.' } 
+            : item
+        ));
+      }
+    }
+
+    setBulkUploading(false);
+  };
+
+  const handleUpdateBulkItem = (id, fields) => {
+    setBulkItems(prev => prev.map(item => 
+      item.id === id ? { ...item, ...fields } : item
+    ));
+  };
+
+  const handleRemoveBulkItem = (id) => {
+    setBulkItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleSaveBulkPrompts = async () => {
+    const validItems = bulkItems.filter(item => item.refImage && !item.uploading && !item.error);
+    if (validItems.length === 0) {
+      alert('Nenhuma foto enviada com sucesso para salvar.');
+      return;
+    }
+
+    let finalCategory = isCustomCategory ? customCategoryName.trim() : newPromptCategory;
+    if (!finalCategory) {
+      alert('Por favor, informe a categoria/nicho.');
+      return;
+    }
+    finalCategory = finalCategory.charAt(0).toUpperCase() + finalCategory.slice(1);
+
+    const newPrompts = validItems.map(item => ({
+      id: 'pr-' + Date.now() + '-' + Math.round(Math.random() * 1e5),
+      title: item.title || 'Foto Profissional',
+      category: finalCategory,
+      prompt: item.prompt || 'Professional high-end visual post, corporate branding style.',
+      refImage: item.refImage,
+      refImageCropY: `${item.cropY}%`
+    }));
+
+    const updated = [...prompts, ...newPrompts];
+    await savePrompts(updated);
+
+    if (!categories.includes(finalCategory)) {
+      const updatedCats = [...categories, finalCategory];
+      await saveCategories(updatedCats);
+    }
+
+    // Reset bulk states and close
+    setBulkItems([]);
+    setIsBulkImport(false);
+    setIsAdminModalOpen(false);
+    
+    // Clear normal states
+    setNewPromptTitle('Foto Profissional');
+    setNewPromptText('');
+    setNewPromptRefImage('');
+    setNewPromptCategory('Foto de Estudio');
+    setIsCustomCategory(false);
+    setCustomCategoryName('');
+    setNewPromptCropY(50);
   };
 
   const handleDeletePrompt = (id) => {
@@ -859,7 +975,7 @@ export default function AIPage() {
                           </>
                         ) : (
                           <>
-                            <Copy className="h-3.5 w-3.5" />
+<Copy className="h-3.5 w-3.5" />
                             <span>Copiar Prompt</span>
                           </>
                         )}
@@ -874,9 +990,15 @@ export default function AIPage() {
           {/* Admin Add Prompt Modal */}
           {isAdminModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-body animate-fade-in text-left">
-              <div className="w-full max-w-md rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col">
+              <div className={`w-full rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col transition-all duration-300 ${
+                isBulkImport ? 'max-w-4xl max-h-[90vh]' : 'max-w-md'
+              }`}>
                 <button 
-                  onClick={() => setIsAdminModalOpen(false)}
+                  onClick={() => {
+                    setIsAdminModalOpen(false);
+                    setBulkItems([]);
+                    setIsBulkImport(false);
+                  }}
                   className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10"
                 >
                   <X className="h-4 w-4" />
@@ -885,177 +1007,337 @@ export default function AIPage() {
                 <div className="pb-4 border-b border-[#1f1f1f] space-y-1">
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <Plus className="h-4 w-4 text-[#e13a40]" />
-                    Adicionar Prompt para Instagram
+                    {isBulkImport ? 'Importador em Massa de Prompts' : 'Adicionar Prompt para Instagram'}
                   </h2>
-                  <p className="text-[11px] text-zinc-500">Cadastre um prompt criativo de alta performance para seus usuários copiarem ou gerarem com IA.</p>
+                  <p className="text-[11px] text-zinc-500">
+                    {isBulkImport 
+                      ? 'Selecione várias fotos de uma vez e cadastre múltiplos prompts com uma única etiqueta e enquadramentos independentes.' 
+                      : 'Cadastre um prompt criativo de alta performance para seus usuários copiarem ou gerarem com IA.'}
+                  </p>
                 </div>
 
-                <div className="py-4 space-y-3.5 text-xs text-zinc-100">
-                  {/* Category Selector */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Categoria / Nicho</label>
-                      <button
-                        type="button"
-                        onClick={() => setIsCustomCategory(!isCustomCategory)}
-                        className="text-[#e13a40] hover:underline text-[10px] font-bold cursor-pointer"
-                      >
-                        {isCustomCategory ? 'Selecionar da Lista' : '+ Adicionar Personalizado'}
-                      </button>
-                    </div>
+                {/* Single / Bulk Mode Toggle Switch */}
+                <div className="mt-4">
+                  <div className="flex bg-zinc-950 border border-zinc-900 rounded-xl p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkImport(false)}
+                      className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                        !isBulkImport 
+                          ? 'bg-[#e13a40] text-white shadow-md' 
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      Cadastro Único
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkImport(true)}
+                      className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                        isBulkImport 
+                          ? 'bg-[#e13a40] text-white shadow-md' 
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      Importar Várias Fotos (Em Massa)
+                    </button>
+                  </div>
+                </div>
 
-                    {isCustomCategory ? (
-                      <Input
-                        required
-                        placeholder="Digite a categoria personalizada (ex: Finanças, Saúde)"
-                        value={customCategoryName}
-                        onChange={(e) => setCustomCategoryName(e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1))}
-                        className="bg-[#1a1a1a] border-[#1f1f1f] text-xs h-9 focus:border-[#e13a40]"
-                      />
-                    ) : (
-                      <select
-                        value={newPromptCategory}
-                        onChange={(e) => setNewPromptCategory(e.target.value)}
-                        className="w-full bg-[#1a1a1a] text-white text-xs rounded-xl border border-[#1f1f1f] focus:border-[#e13a40] h-9 px-3 outline-none font-semibold cursor-pointer"
-                      >
-                        {categories.map(cat => (
-                           <option key={cat} value={cat}>{cat}</option>
-                         ))}
-                      </select>
-                    )}
+                {/* Common Category Selector (For both Single and Bulk Modes!) */}
+                <div className="mt-4 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                      {isBulkImport ? 'Categoria Global (Aplica a todos)' : 'Categoria / Nicho'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomCategory(!isCustomCategory)}
+                      className="text-[#e13a40] hover:underline text-[10px] font-bold cursor-pointer"
+                    >
+                      {isCustomCategory ? 'Selecionar da Lista' : '+ Adicionar Personalizado'}
+                    </button>
                   </div>
 
-                  {/* Title */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Título do Prompt</label>
+                  {isCustomCategory ? (
                     <Input
                       required
-                      placeholder="Ex: Foto de Comida Gourmet Profissional"
-                      value={newPromptTitle}
-                      onChange={(e) => setNewPromptTitle(e.target.value)}
+                      placeholder="Digite a categoria personalizada (ex: Finanças, Saúde)"
+                      value={customCategoryName}
+                      onChange={(e) => setCustomCategoryName(e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1))}
                       className="bg-[#1a1a1a] border-[#1f1f1f] text-xs h-9 focus:border-[#e13a40]"
                     />
-                  </div>
+                  ) : (
+                    <select
+                      value={newPromptCategory}
+                      onChange={(e) => setNewPromptCategory(e.target.value)}
+                      className="w-full bg-[#1a1a1a] text-white text-xs rounded-xl border border-[#1f1f1f] focus:border-[#e13a40] h-9 px-3 outline-none font-semibold cursor-pointer"
+                    >
+                      {categories.map(cat => (
+                         <option key={cat} value={cat}>{cat}</option>
+                       ))}
+                    </select>
+                  )}
+                </div>
 
-                  {/* Prompt Text */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Prompt de Comando em Inglês (Melhores Resultados)</label>
-                    <textarea
-                      required
-                      rows={3}
-                      placeholder="Ex: Professional dynamic corporate office team collaboration shot, clean lighting..."
-                      value={newPromptText}
-                      onChange={(e) => setNewPromptText(e.target.value)}
-                      className="w-full bg-[#1a1a1a] border border-[#1f1f1f] rounded-xl p-3 text-xs text-white focus:border-[#e13a40] outline-none font-body leading-relaxed"
-                    />
-                  </div>
+                {/* ─── MODE: SINGLE CREATION ─── */}
+                {!isBulkImport && (
+                  <div className="py-4 space-y-3.5 text-xs text-zinc-100 overflow-y-auto max-h-[60vh] pr-1">
+                    {/* Title */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Título do Prompt</label>
+                      <Input
+                        required
+                        placeholder="Ex: Foto de Comida Gourmet Profissional"
+                        value={newPromptTitle}
+                        onChange={(e) => setNewPromptTitle(e.target.value)}
+                        className="bg-[#1a1a1a] border-[#1f1f1f] text-xs h-9 focus:border-[#e13a40]"
+                      />
+                    </div>
 
-                  {/* Reference Image Upload & Interactive Cropper */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Imagem de Exemplo / Referência *</label>
-                    
-                    {!newPromptRefImage ? (
-                      <div 
-                        onClick={() => document.getElementById('admin-prompt-ref-image-input').click()}
-                        className="border-2 border-dashed border-[#1f1f1f] bg-[#1a1a1a] rounded-xl p-4 text-center cursor-pointer hover:border-zinc-700 hover:bg-[#202020] transition-all flex flex-col items-center justify-center gap-2 min-h-28"
-                      >
-                        <input
-                          type="file"
-                          id="admin-prompt-ref-image-input"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={async (e) => {
-                             const file = e.target.files?.[0];
-                             if (file) {
-                               try {
-                                 // Compress image to max 1200x1200px at 90% quality before upload
-                                 const compressedBlob = await compressImage(file, 1200, 1200, 0.9);
-                                 const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
-                                 
-                                 // Upload compressed file to VPS
-                                 const res = await apiUpload('/api/settings/upload', compressedFile);
-                                 const data = await res.json();
-                                 if (data.success && data.url) {
-                                   setNewPromptRefImage(data.url);
-                                 } else {
-                                   throw new Error('Falha ao enviar imagem para o servidor.');
+                    {/* Prompt Text */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Prompt de Comando em Inglês (Melhores Resultados)</label>
+                      <textarea
+                        required
+                        rows={3}
+                        placeholder="Ex: Professional dynamic corporate office team collaboration shot, clean lighting..."
+                        value={newPromptText}
+                        onChange={(e) => setNewPromptText(e.target.value)}
+                        className="w-full bg-[#1a1a1a] border border-[#1f1f1f] rounded-xl p-3 text-xs text-white focus:border-[#e13a40] outline-none font-body leading-relaxed"
+                      />
+                    </div>
+
+                    {/* Reference Image Upload & Interactive Cropper */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Imagem de Exemplo / Referência *</label>
+                      
+                      {!newPromptRefImage ? (
+                        <div 
+                          onClick={() => document.getElementById('admin-prompt-ref-image-input').click()}
+                          className="border-2 border-dashed border-[#1f1f1f] bg-[#1a1a1a] rounded-xl p-4 text-center cursor-pointer hover:border-zinc-700 hover:bg-[#202020] transition-all flex flex-col items-center justify-center gap-2 min-h-28"
+                        >
+                          <input
+                            type="file"
+                            id="admin-prompt-ref-image-input"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                               const file = e.target.files?.[0];
+                               if (file) {
+                                 try {
+                                   const compressedBlob = await compressImage(file, 1200, 1200, 0.9);
+                                   const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+                                   
+                                   const res = await apiUpload('/api/settings/upload', compressedFile);
+                                   const data = await res.json();
+                                   if (data.success && data.url) {
+                                     setNewPromptRefImage(data.url);
+                                   } else {
+                                     throw new Error('Falha ao enviar imagem.');
+                                   }
+                                 } catch (err) {
+                                   console.error(err);
+                                   alert('Erro ao fazer upload da imagem: ' + err.message);
                                  }
-                               } catch (err) {
-                                 console.error('[AIPage:Upload] Error uploading reference image:', err);
-                                 alert('Erro ao fazer upload da imagem: ' + err.message);
                                }
-                             }
-                           }}
-                        />
-                        <svg className="h-6 w-6 text-zinc-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                        </svg>
-                        <div>
-                          <p className="text-[11px] font-semibold text-white">Clique para selecionar a imagem</p>
-                          <p className="text-[9px] text-zinc-500 mt-0.5">PNG, JPG, JPEG ou WEBP</p>
+                             }}
+                          />
+                          <svg className="h-6 w-6 text-zinc-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                          </svg>
+                          <div>
+                            <p className="text-[11px] font-semibold text-white">Clique para selecionar a imagem</p>
+                            <p className="text-[9px] text-zinc-500 mt-0.5">PNG, JPG, JPEG ou WEBP</p>
+                          </div>
                         </div>
+                      ) : (
+                        <div className="space-y-3 p-3 rounded-xl border border-[#1f1f1f] bg-[#1a1a1a]/50">
+                          <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex justify-between items-center mb-1">
+                            <span>Ajuste o Enquadramento</span>
+                            <button 
+                              type="button"
+                              onClick={() => setNewPromptRefImage('')}
+                              className="text-rose-500 hover:underline"
+                            >
+                              Remover
+                            </button>
+                          </div>
+
+                          <div className="w-full max-w-[240px] mx-auto rounded-lg overflow-hidden border border-[#222] bg-zinc-950 relative flex items-center justify-center" style={{ aspectRatio: '1 / 1' }}>
+                            <img 
+                              src={newPromptRefImage} 
+                              alt="Focal Crop Preview" 
+                              style={{ objectPosition: `center ${newPromptCropY}%` }}
+                              className="w-full h-full object-cover" 
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-zinc-400 font-bold">
+                              <span>Foco: Topo</span>
+                              <span className="text-[#e13a40]">{newPromptCropY}%</span>
+                              <span>Foco: Base</span>
+                            </div>
+                            <input 
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={newPromptCropY}
+                              onChange={(e) => setNewPromptCropY(parseInt(e.target.value))}
+                              className="w-full h-1 bg-zinc-900 rounded-lg appearance-none cursor-pointer accent-[#e13a40]"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── MODE: BULK CREATION (EM MASSA) ─── */}
+                {isBulkImport && (
+                  <div className="flex-1 flex flex-col min-h-0 pt-3">
+                    {/* Big File Dropzone */}
+                    <div 
+                      onClick={() => document.getElementById('admin-bulk-images-input').click()}
+                      className="border-2 border-dashed border-zinc-800 bg-zinc-950/60 rounded-xl p-5 text-center cursor-pointer hover:border-zinc-700 hover:bg-zinc-900/20 transition-all flex flex-col items-center justify-center gap-2 min-h-24 shrink-0"
+                    >
+                      <input
+                        type="file"
+                        id="admin-bulk-images-input"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleBulkFilesChange}
+                      />
+                      <svg className="h-6 w-6 text-[#e13a40] mx-auto opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-xs font-bold text-white">Selecionar Múltiplas Fotos do Computador</p>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">Upe várias imagens de uma vez. O enquadramento e prompt serão ajustados individualmente.</p>
+                      </div>
+                    </div>
+
+                    {/* Scrollable list of items to customize */}
+                    {bulkItems.length > 0 ? (
+                      <div className="overflow-y-auto pr-1 mt-4 flex-1 space-y-4 max-h-[38vh] scrollbar-thin">
+                        {bulkItems.map((item, idx) => (
+                          <div key={item.id} className="p-4 bg-zinc-950 border border-zinc-900 rounded-xl flex flex-col md:flex-row gap-4 relative group/item">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBulkItem(item.id)}
+                              className="absolute right-3 top-3 p-1 text-zinc-600 hover:text-rose-500 rounded transition-all cursor-pointer z-10"
+                              title="Remover item"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+
+                            {/* Left: 1:1 preview and alignment slider */}
+                            <div className="w-full md:w-36 flex flex-col gap-2 shrink-0">
+                              <div className="relative rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900 aspect-square flex items-center justify-center">
+                                {item.uploading ? (
+                                  <div className="flex flex-col items-center gap-1.5 text-zinc-500 text-[10px]">
+                                    <Loader2 className="h-4.5 w-4.5 animate-spin text-[#e13a40]" />
+                                    <span>Enviando...</span>
+                                  </div>
+                                ) : item.error ? (
+                                  <span className="text-[10px] text-rose-500 px-2 text-center font-bold">{item.error}</span>
+                                ) : (
+                                  <img 
+                                    src={item.refImage} 
+                                    alt="Focal Crop Preview" 
+                                    style={{ objectPosition: `center ${item.cropY}%` }}
+                                    className="w-full h-full object-cover" 
+                                  />
+                                )}
+                              </div>
+                              
+                              {!item.uploading && !item.error && item.refImage && (
+                                <div className="space-y-0.5">
+                                  <div className="flex justify-between text-[8px] text-zinc-500 font-bold">
+                                    <span>Foco: Topo ({item.cropY}%)</span>
+                                    <span>Foco: Base</span>
+                                  </div>
+                                  <input 
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={item.cropY}
+                                    onChange={(e) => handleUpdateBulkItem(item.id, { cropY: parseInt(e.target.value) })}
+                                    className="w-full h-1 bg-zinc-900 rounded appearance-none cursor-pointer accent-[#e13a40]"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right: Inputs */}
+                            <div className="flex-1 flex flex-col gap-3 pt-2 md:pt-0">
+                              <div className="grid grid-cols-1 gap-1.5">
+                                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Item #{idx+1} — Descrição/Título</span>
+                                <input
+                                  type="text"
+                                  value={item.title}
+                                  placeholder="Ex: Foto Profissional"
+                                  onChange={(e) => handleUpdateBulkItem(item.id, { title: e.target.value })}
+                                  className="w-full bg-[#121212] border border-zinc-900 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-[#e13a40] outline-none font-semibold h-8"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-1.5">
+                                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Prompt de Comando (Inglês)</span>
+                                <textarea
+                                  rows={2}
+                                  value={item.prompt}
+                                  placeholder="Ex: Ultra realistic close-up food photo, gourmet style, highly detailed..."
+                                  onChange={(e) => handleUpdateBulkItem(item.id, { prompt: e.target.value })}
+                                  className="w-full bg-[#121212] border border-zinc-900 rounded-xl p-2 text-xs text-white placeholder-zinc-600 focus:border-[#e13a40] outline-none font-body leading-relaxed"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
-                      <div className="space-y-3 p-3 rounded-xl border border-[#1f1f1f] bg-[#1a1a1a]/50">
-                        {/* 1:1 Aspect ratio preview frame */}
-                        <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex justify-between items-center mb-1">
-                          <span>Ajuste o Enquadramento</span>
-                          <button 
-                            type="button"
-                            onClick={() => setNewPromptRefImage('')}
-                            className="text-rose-500 hover:underline"
-                          >
-                            Remover
-                          </button>
-                        </div>
-
-                        {/* Interactive live crop preview screen */}
-                        <div className="w-full max-w-[240px] mx-auto rounded-lg overflow-hidden border border-[#222] bg-zinc-950 relative flex items-center justify-center" style={{ aspectRatio: '1 / 1' }}>
-                          <img 
-                            src={newPromptRefImage} 
-                            alt="Focal Crop Preview" 
-                            style={{ objectPosition: `center ${newPromptCropY}%` }}
-                            className="w-full h-full object-cover" 
-                          />
-                        </div>
-
-                        {/* Slider Controller */}
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[10px] text-zinc-400 font-bold">
-                            <span>Foco: Topo</span>
-                            <span className="text-[#e13a40]">{newPromptCropY}%</span>
-                            <span>Foco: Base</span>
-                          </div>
-                          <input 
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={newPromptCropY}
-                            onChange={(e) => setNewPromptCropY(parseInt(e.target.value))}
-                            className="w-full h-1 bg-zinc-900 rounded-lg appearance-none cursor-pointer accent-[#e13a40]"
-                          />
-                        </div>
+                      <div className="flex-1 flex flex-col items-center justify-center p-8 border border-dashed border-zinc-800 rounded-xl bg-zinc-950/20 mt-4 text-center">
+                        <span className="text-zinc-600 text-xs font-semibold uppercase tracking-wider">Nenhuma foto selecionada ainda.</span>
                       </div>
                     )}
                   </div>
-                </div>
+                )}
 
-                <div className="pt-4 border-t border-[#1f1f1f] flex justify-end gap-3 text-xs">
+                {/* Footer Buttons */}
+                <div className="pt-4 border-t border-[#1f1f1f] flex justify-end gap-3 text-xs shrink-0 mt-3">
                   <button
                     type="button"
-                    onClick={() => setIsAdminModalOpen(false)}
-                    className="py-2 px-4 rounded-lg bg-zinc-900 border border-[#1f1f1f] text-zinc-400 hover:text-white font-semibold transition-all h-9"
+                    onClick={() => {
+                      setIsAdminModalOpen(false);
+                      setBulkItems([]);
+                      setIsBulkImport(false);
+                    }}
+                    className="py-2 px-4 rounded-lg bg-zinc-900 border border-[#1f1f1f] text-zinc-400 hover:text-white font-semibold transition-all h-9 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   
-                  <button
-                    type="button"
-                    onClick={handleAddPrompt}
-                    className="py-2 px-5 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold transition-all shadow-md h-9"
-                  >
-                    Adicionar Prompt
-                  </button>
+                  {isBulkImport ? (
+                    <button
+                      type="button"
+                      onClick={handleSaveBulkPrompts}
+                      disabled={bulkItems.filter(item => item.refImage && !item.uploading && !item.error).length === 0}
+                      className="py-2 px-5 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold transition-all shadow-md h-9 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Salvar Todos ({bulkItems.filter(item => item.refImage && !item.uploading && !item.error).length})
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleAddPrompt}
+                      className="py-2 px-5 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold transition-all shadow-md h-9 cursor-pointer"
+                    >
+                      Adicionar Prompt
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
