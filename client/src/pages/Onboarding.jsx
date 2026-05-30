@@ -19,7 +19,15 @@ import {
   Layout as LayoutIcon,
   Link as LinkIcon,
   ChevronRight,
-  Loader2
+  Loader2,
+  Paintbrush,
+  Smartphone,
+  Video,
+  TrendingUp,
+  Code,
+  Camera,
+  PenTool,
+  Building
 } from 'lucide-react';
 import { apiFetch, apiUpload } from '../lib/api';
 import { compressImage } from '../lib/imageCompressor';
@@ -443,7 +451,7 @@ export default function Onboarding({ onComplete }) {
           <img 
             src={formData.profile_avatar || formData.onboarding_logo} 
             alt="Brand Watermark" 
-            className="w-[45vh] h-[45vh] max-w-[400px] max-h-[400px] object-contain opacity-[0.015] pointer-events-none select-none" 
+            className="w-[75vh] h-[75vh] max-w-[700px] max-h-[700px] object-contain brightness-0 invert opacity-[0.055] pointer-events-none select-none" 
           />
         </div>
       )}
@@ -775,10 +783,17 @@ export default function Onboarding({ onComplete }) {
                   {Object.entries(NICHE_PRESETS).map(([key, niche]) => {
                     const isSelected = formData.onboarding_nicho === key;
                     const nicheIcons = {
-                      designer: '🎨', social_media: '📱', videomaker: '🎬',
-                      gestor_trafego: '📊', dev_web: '💻', fotografo: '📷',
-                      copywriter: '✍️', agencia: '🚀', outro: '⚡'
+                      designer: Paintbrush, 
+                      social_media: Smartphone, 
+                      videomaker: Video,
+                      gestor_trafego: TrendingUp, 
+                      dev_web: Code, 
+                      fotografo: Camera,
+                      copywriter: PenTool, 
+                      agencia: Building, 
+                      outro: Sparkles
                     };
+                    const IconComponent = nicheIcons[key] || Sparkles;
                     const subtitle = NICHE_PRESETS[key].services[0].title + ' e mais';
                     return (
                       <button
@@ -790,7 +805,9 @@ export default function Onboarding({ onComplete }) {
                             : 'border-zinc-800/80 hover:border-zinc-700'
                         }`}
                       >
-                        <span className="text-xl shrink-0">{nicheIcons[key]}</span>
+                        <div className="p-2 bg-[#e13a40]/10 rounded-lg text-[#e13a40] shrink-0">
+                          <IconComponent className="h-5 w-5" />
+                        </div>
                         <div className="space-y-0.5">
                           <span className="text-xs font-bold text-white block">{niche.name}</span>
                           <span className="text-[9px] text-zinc-650 block leading-tight font-body">{subtitle}</span>
@@ -956,7 +973,7 @@ export default function Onboarding({ onComplete }) {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Agora vamos aumentar suas vendas! 🚀</h2>
+                  <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Agora vamos aumentar suas vendas!</h2>
                   <p className="text-xs text-zinc-400 leading-relaxed font-body max-w-sm mx-auto">
                     Vamos configurar sua página profissional para captar mais clientes e fechar mais negócios.
                   </p>
@@ -1180,11 +1197,11 @@ export default function Onboarding({ onComplete }) {
               <div className="space-y-4 text-center py-6">
                 <div className="flex justify-center">
                   <div className="h-16 w-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.15)] animate-bounce">
-                    <span className="text-3xl animate-pulse">🎉</span>
+                    <CheckCircle className="h-8 w-8 text-emerald-400" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-black text-white tracking-tight">Parabéns! 🎉</h2>
+                  <h2 className="text-2xl font-black text-white tracking-tight">Parabéns! Concluído</h2>
                   <h3 className="text-sm font-bold text-zinc-300">Você completou a configuração inicial!</h3>
                   <p className="text-xs text-zinc-450 leading-relaxed font-body max-w-sm mx-auto">
                     Sua página está pronta. Agora vamos te mostrar como usar a plataforma.

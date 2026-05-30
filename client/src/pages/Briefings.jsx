@@ -50,10 +50,10 @@ export default function Briefings() {
           <p className="text-zinc-400 font-body text-xs md:text-sm leading-relaxed max-w-lg mx-auto">
             {easterEggActive ? (
               <span className="text-orange-400 font-bold transition-all animate-pulse">
-                🚨 ATENÇÃO: Scanner biométrico ativado! Nossos agentes secretos acabam de registrar seu interesse estratégico nesta funcionalidade. Código criptografado enviado! 🕵️‍♂️✨
+                ATENÇÃO: Scanner biométrico ativado! Nossos agentes secretos acabam de registrar seu interesse estratégico nesta funcionalidade. Código criptografado enviado!
               </span>
             ) : (
-              "🕵️‍♂️ OPERAÇÃO AGENTE SECRETO NEXDASH: Nossos engenheiros cibernéticos e robôs espiões estão atualmente em campo de treinamento intensivo. Em breve, este módulo será desbloqueado para você criar briefings inteligentes que extraem segredos cruciais dos seus clientes, sincronizando respostas de requisitos diretamente no funil!"
+              "OPERAÇÃO AGENTE SECRETO NEXDASH: Nossos engenheiros cibernéticos e robôs espiões estão atualmente em campo de treinamento intensivo. Em breve, este módulo será desbloqueado para você criar briefings inteligentes que extraem segredos cruciais dos seus clientes, sincronizando respostas de requisitos diretamente no funil!"
             )}
           </p>
         </div>
@@ -66,7 +66,7 @@ export default function Briefings() {
           </div>
           <div className="space-y-1.5 pl-3 border-l-2 border-orange-500/30">
             <span className="block text-[9px] uppercase tracking-wider text-zinc-500 font-bold font-mono">LANÇAMENTO</span>
-            <span className="block text-[11px] text-zinc-300 font-bold">Em Breve 🚀</span>
+            <span className="block text-[11px] text-zinc-300 font-bold">Em Breve</span>
           </div>
           <div className="space-y-1.5 pl-3 border-l-2 border-zinc-800">
             <span className="block text-[9px] uppercase tracking-wider text-zinc-500 font-bold font-mono">ACESSO</span>

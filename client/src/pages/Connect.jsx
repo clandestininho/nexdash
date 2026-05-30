@@ -262,7 +262,7 @@ export default function Connect() {
             {/* Welcome messages */}
             <div className="space-y-2">
               <h2 className="font-display text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-none">
-                🎉 Conta Criada com Sucesso!
+                Conta Criada com Sucesso!
               </h2>
               <p className="text-sm font-bold text-zinc-300">
                 Seja muito bem-vindo ao NEXDASH, {userName}!

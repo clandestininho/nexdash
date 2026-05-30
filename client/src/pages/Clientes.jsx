@@ -903,7 +903,7 @@ export default function Clientes() {
                     onChange={(e) => setFormPipeline(e.target.value)}
                     className="w-full bg-[#1a1a1a] text-white text-sm rounded-lg border border-[#1f1f1f] p-2.5 outline-none focus:border-[#e13a40] font-semibold h-9"
                   >
-                    {STAGES.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+                    {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
                 </div>
 

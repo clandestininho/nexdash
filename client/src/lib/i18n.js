@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const translations = {
-  PT: {
+  PT_BR: {
     // Header
     search_placeholder: "Buscar clientes, leads ou propostas...",
     revenue_goal: "Meta de Receita",
@@ -45,6 +45,53 @@ const translations = {
     settings: "Configurações",
     all_access_released: "ACESSO TOTAL LIBERADO",
     subscribe_plan: "Assinar Plano",
+    upgrade_plan: "Fazer Upgrade",
+    log_out: "Sair da conta"
+  },
+  PT_PT: {
+    // Header
+    search_placeholder: "Procurar clientes, leads ou orçamentos...",
+    revenue_goal: "Meta de Receita",
+    ai_credits: "CRÉDITOS IA",
+    read_notifications: "Lidas",
+    no_recent_notifications: "Nenhuma triagem recente no funil",
+    view_logs: "Ver Painel de Logs →",
+    change_light_theme: "Mudar para Tema Claro",
+    change_dark_theme: "Mudar para Tema Escuro",
+    // Sidebar
+    new_sale: "Nova Venda",
+    dashboard: "Painel Principal",
+    clients: "Clientes",
+    pipelines: "Pipelines",
+    tools: "Ferramentas",
+    ai_agents: "Agentes IA",
+    overview: "Visão geral",
+    analyst: "Analista",
+    copywriter: "Copywriter",
+    designer: "Designer",
+    tasks: "Tarefas",
+    board: "Quadro",
+    content: "Conteúdos",
+    management_sales: "Gestão & Vendas",
+    agenda: "Agenda",
+    finance: "Financeiro",
+    services: "Serviços",
+    proposals: "Orçamentos",
+    briefings: "Briefings",
+    pages: "Páginas",
+    team: "Equipa",
+    whatsapp: "WhatsApp",
+    chats: "Conversas",
+    attendants: "Assistentes",
+    automations: "Automações",
+    group_monitor: "Monitor de Grupos",
+    number_connection: "Conexão Número",
+    system: "Sistema",
+    classification_logs: "Log de Classificações",
+    learning: "Aprendizagem",
+    settings: "Configurações",
+    all_access_released: "ACESSO TOTAL LIBERADO",
+    subscribe_plan: "Subscrever Plano",
     upgrade_plan: "Fazer Upgrade",
     log_out: "Sair da conta"
   },
@@ -141,7 +188,10 @@ const translations = {
 };
 
 export function getLanguage() {
-  return localStorage.getItem('nexdash_lang') || 'PT';
+  const stored = localStorage.getItem('nexdash_lang');
+  if (stored === 'PT' || stored === 'PT_BR' || stored === 'PT-BR') return 'PT_BR';
+  if (stored === 'PT_PT' || stored === 'PT-PT') return 'PT_PT';
+  return stored || 'PT_BR';
 }
 
 export function setLanguage(lang) {
@@ -151,7 +201,7 @@ export function setLanguage(lang) {
 
 export function t(key) {
   const lang = getLanguage();
-  return translations[lang]?.[key] || translations['PT']?.[key] || key;
+  return translations[lang]?.[key] || translations['PT_BR']?.[key] || key;
 }
 
 export function useTranslation() {
@@ -167,7 +217,7 @@ export function useTranslation() {
 
   return {
     lang,
-    t: (key) => translations[lang]?.[key] || translations['PT']?.[key] || key,
+    t: (key) => translations[lang]?.[key] || translations['PT_BR']?.[key] || key,
     setLanguage
   };
 }

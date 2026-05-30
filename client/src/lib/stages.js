@@ -1,12 +1,12 @@
 export const STAGES = [
-  { id: 'novo-lead', label: 'Novo Lead', color: '#7A8C6E', emoji: '🟢' },
-  { id: 'qualificando', label: 'Qualificando', color: '#4A90D9', emoji: '🔵' },
-  { id: 'proposta-enviada', label: 'Proposta Enviada', color: '#C9A84C', emoji: '🟡' },
-  { id: 'negociando', label: 'Negociando', color: '#D4842A', emoji: '🟠' },
-  { id: 'fechado', label: 'Fechado', color: '#4CAF50', emoji: '✅' },
-  { id: 'em-producao', label: 'Em Produção', color: '#9C27B0', emoji: '🔨' },
-  { id: 'entregue', label: 'Entregue', color: '#607D8B', emoji: '🎉' },
-  { id: 'perdido', label: 'Perdido', color: '#B05C3A', emoji: '🔴' },
+  { id: 'novo-lead', label: 'Novo Lead', color: '#7A8C6E' },
+  { id: 'qualificando', label: 'Qualificando', color: '#4A90D9' },
+  { id: 'proposta-enviada', label: 'Proposta Enviada', color: '#C9A84C' },
+  { id: 'negociando', label: 'Negociando', color: '#D4842A' },
+  { id: 'fechado', label: 'Fechado', color: '#4CAF50' },
+  { id: 'em-producao', label: 'Em Produção', color: '#9C27B0' },
+  { id: 'entregue', label: 'Entregue', color: '#607D8B' },
+  { id: 'perdido', label: 'Perdido', color: '#B05C3A' },
 ];
 
 /**

@@ -338,43 +338,58 @@ export default function Header() {
         {/* Language selector */}
         <div className="relative">
           <button 
+            type="button"
             onClick={() => setShowLangDropdown(!showLangDropdown)}
-            className="flex items-center gap-1.5 p-1 px-2 rounded-lg hover:bg-[#1a1a1a] text-zinc-400 hover:text-zinc-100 text-xs font-medium transition-all"
+            className="flex items-center gap-1.5 p-1 px-2 rounded-lg hover:bg-[#1a1a1a] text-zinc-400 hover:text-zinc-100 text-xs font-medium transition-all cursor-pointer"
           >
-            <span className="mr-0.5">{lang === 'EN' ? '🇺🇸' : lang === 'ES' ? '🇪🇸' : '🇧🇷'}</span>
-            <span className="text-[10px] font-bold">{lang}</span>
+            <span className="mr-0.5">{lang === 'EN' ? '🇺🇸' : lang === 'ES' ? '🇪🇸' : lang === 'PT_PT' ? '🇵🇹' : '🇧🇷'}</span>
+            <span className="text-[10px] font-bold">{lang === 'PT_BR' ? 'PT-BR' : lang === 'PT_PT' ? 'PT-PT' : lang}</span>
             <ChevronDown className="h-3 w-3" />
           </button>
           
           {showLangDropdown && (
-            <div className="absolute right-0 mt-2 w-32 bg-[#0c0c0e]/95 border border-[#1f1f23] rounded-xl shadow-2xl backdrop-blur-md z-50 overflow-hidden animate-slide-down">
+            <div className="absolute right-0 mt-2 w-40 bg-[#0c0c0e]/95 border border-[#1f1f23] rounded-xl shadow-2xl backdrop-blur-md z-50 overflow-hidden animate-slide-down">
               <div className="py-1 divide-y divide-[#1f1f23]/30">
                 <button
+                  type="button"
                   onClick={() => {
-                    setLanguage('PT');
+                    setLanguage('PT_BR');
                     setShowLangDropdown(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors ${lang === 'PT' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors cursor-pointer ${lang === 'PT_BR' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
                 >
                   <span>🇧🇷</span>
-                  <span>Português</span>
+                  <span>PT-BR (Brasil)</span>
                 </button>
                 <button
+                  type="button"
+                  onClick={() => {
+                    setLanguage('PT_PT');
+                    setShowLangDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors cursor-pointer ${lang === 'PT_PT' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  <span>🇵🇹</span>
+                  <span>PT-PT (Portugal)</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     setLanguage('EN');
                     setShowLangDropdown(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors ${lang === 'EN' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors cursor-pointer ${lang === 'EN' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
                 >
                   <span>🇺🇸</span>
                   <span>English</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setLanguage('ES');
                     setShowLangDropdown(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors ${lang === 'ES' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-900 transition-colors cursor-pointer ${lang === 'ES' ? 'text-[#e13a40] font-bold bg-zinc-900/40' : 'text-zinc-400 hover:text-zinc-200'}`}
                 >
                   <span>🇪🇸</span>
                   <span>Español</span>

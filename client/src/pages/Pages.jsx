@@ -64,7 +64,7 @@ export default function Pages() {
   const [heroTitle, setHeroTitle] = useState('Nexfy');
   const [heroSubtitle, setHeroSubtitle] = useState('Transformando ideias em realidade');
   const [layoutName, setLayoutName] = useState('Hoverton PRO');
-  const [customDomain, setCustomDomain] = useState('dgflow.com.br/p/nexfy');
+  const [customDomain, setCustomDomain] = useState('crm.legattoorg.com.br/nexfy');
   const [leadCaptureConfigured, setLeadCaptureConfigured] = useState(false);
 
   // Tracking pixel configurations

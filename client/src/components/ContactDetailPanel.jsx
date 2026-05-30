@@ -329,7 +329,7 @@ export default function ContactDetailPanel({ contact, history = [], visible, onC
                     >
                       {STAGES.map((s) => (
                         <option key={s.id} value={s.id} className="bg-zinc-950 text-zinc-100">
-                          {s.emoji} {s.label}
+                          {s.label}
                         </option>
                       ))}
                     </select>

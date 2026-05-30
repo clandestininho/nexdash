@@ -61,13 +61,114 @@ export default function Agenda() {
   const [tagInput, setTagInput] = useState('');
   const [evtAssignee, setEvtAssignee] = useState('Gleison');
   const [evtGoogleSync, setEvtGoogleSync] = useState(false);
+  
+  // Custom Modal and Integrations States
   const [isIntegrationsModalOpen, setIsIntegrationsModalOpen] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [icalSubscribed, setIcalSubscribed] = useState(false);
   const [calendarSuggestion, setCalendarSuggestion] = useState('');
+  
+  // Premium Real Integrations States
+  const [integrationTab, setIntegrationTab] = useState('list'); // list | google | apple
+  const [googleCalendarUrl, setGoogleCalendarUrl] = useState('');
+  const [appleCalendarUrl, setAppleCalendarUrl] = useState('');
+  const [externalEvents, setExternalEvents] = useState([]);
+  const [systemAlert, setSystemAlert] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showDatePickerPopup, setShowDatePickerPopup] = useState(false);
+
+  // Helper for System Notifications
+  const showNotification = (title, message, type = 'info') => {
+    setSystemAlert({ title, message, type });
+  };
+
+  // iCal parser client-side
+  const parseICS = (icsText) => {
+    const parsedEvents = [];
+    const cleanContent = icsText.replace(/\r\n/g, '\n').replace(/\n /g, ''); // Unfold wrapped lines
+    const vevents = cleanContent.split('BEGIN:VEVENT');
+    
+    vevents.shift(); // First chunk before the first BEGIN:VEVENT is header info
+    
+    for (const item of vevents) {
+      const endIdx = item.indexOf('END:VEVENT');
+      if (endIdx === -1) continue;
+      const block = item.substring(0, endIdx);
+      
+      const getField = (fieldName) => {
+        const match = block.match(new RegExp(`^${fieldName}(?:;[^:]*)?:(.*)$`, 'm'));
+        return match ? match[1].trim() : '';
+      };
+      
+      const summary = getField('SUMMARY') || 'Compromisso Externo';
+      const description = getField('DESCRIPTION');
+      const location = getField('LOCATION');
+      const dtstart = getField('DTSTART');
+      const uid = getField('UID') || 'ext-' + Math.random().toString(36).substr(2, 9);
+      
+      let date = '';
+      let time = '';
+      
+      if (dtstart) {
+        if (dtstart.includes('T')) {
+          const parts = dtstart.split('T');
+          const dPart = parts[0];
+          const tPart = parts[1];
+          if (dPart.length >= 8) {
+            date = `${dPart.substring(0, 4)}-${dPart.substring(4, 6)}-${dPart.substring(6, 8)}`;
+          }
+          if (tPart.length >= 4) {
+            time = `${tPart.substring(0, 2)}:${tPart.substring(2, 4)}`;
+          }
+        } else {
+          const dPart = dtstart;
+          if (dPart.length >= 8) {
+            date = `${dPart.substring(0, 4)}-${dPart.substring(4, 6)}-${dPart.substring(6, 8)}`;
+          }
+        }
+      }
+      
+      if (date) {
+        parsedEvents.push({
+          id: uid,
+          title: summary,
+          description: description || 'Sincronizado automaticamente de calendário externo.',
+          location: location || '',
+          date,
+          time: time ? time.substring(0, 5) : null,
+          category: 'Services',
+          isExternal: true
+        });
+      }
+    }
+    return parsedEvents;
+  };
+
+  const fetchAndParseCalendarFeed = async (url, source) => {
+    if (!url) return;
+    try {
+      const response = await apiFetch(`/api/proxy-ical?url=${encodeURIComponent(url)}`);
+      if (!response.ok) throw new Error('Falha ao obter feed do calendário.');
+      const text = await response.text();
+      const parsed = parseICS(text).map(e => ({
+        ...e,
+        title: `${e.title}`,
+        isExternal: true,
+        source
+      }));
+      
+      setExternalEvents(prev => {
+        const filtered = prev.filter(e => e.source !== source);
+        return [...filtered, ...parsed];
+      });
+    } catch (err) {
+      console.error(`Erro ao carregar iCal de ${source}:`, err);
+    }
+  };
 
   useEffect(() => {
-    const loadEvents = () => {
+    const loadEventsAndSettings = async () => {
+      // 1. Load local events
       const stored = localStorage.getItem('dgflow_events');
       if (stored) {
         setEvents(JSON.parse(stored));
@@ -75,8 +176,28 @@ export default function Agenda() {
         setEvents(INITIAL_EVENTS);
         localStorage.setItem('dgflow_events', JSON.stringify(INITIAL_EVENTS));
       }
+
+      // 2. Load settings for calendars
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.google_calendar_ical_url) {
+            setGoogleCalendarUrl(data.google_calendar_ical_url);
+            setGoogleConnected(true);
+            fetchAndParseCalendarFeed(data.google_calendar_ical_url, 'google');
+          }
+          if (data.apple_calendar_ical_url) {
+            setAppleCalendarUrl(data.apple_calendar_ical_url);
+            setIcalSubscribed(true);
+            fetchAndParseCalendarFeed(data.apple_calendar_ical_url, 'apple');
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar configurações de calendário:', err);
+      }
     };
-    loadEvents();
+    loadEventsAndSettings();
   }, []);
 
   const saveEvents = (newEvents) => {
@@ -109,7 +230,7 @@ export default function Agenda() {
   const handleCreateAppointment = (e) => {
     e.preventDefault();
     if (!evtTitle || !evtDate) {
-      alert('Por favor, informe ao menos o título e data do compromisso.');
+      showNotification('Campos Obrigatórios', 'Por favor, informe ao menos o título e data do compromisso.', 'error');
       return;
     }
 
@@ -235,18 +356,8 @@ export default function Agenda() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              setGoogleConnected(!googleConnected);
-              if (!googleConnected) {
-                const mockExternalEvents = [
-                  { id: 'ext-evt-1', title: '📅 [Google] Reunião de Kickoff de Marca', date: '2026-05-25', time: '11:00', duration: '45 min', category: 'Services', client: 'Google Suite Partner', project: 'Design', tags: ['Google-Sync'] },
-                  { id: 'ext-evt-2', title: '📅 [Google] Alinhamento DGFlow MVP', date: '2026-05-29', time: '15:00', duration: '30 min', category: 'Tasks', client: 'Estúdio Design', project: 'MVP Sync', tags: ['Google-Sync'] }
-                ];
-                saveEvents([...events, ...mockExternalEvents]);
-                alert('Google Calendar conectado e eventos de reuniões externos sincronizados com sucesso!');
-              } else {
-                saveEvents(events.filter(e => !e.id.startsWith('ext-')));
-                alert('Google Calendar desconectado e compromissos sincronizados removidos.');
-              }
+              setIsIntegrationsModalOpen(true);
+              setIntegrationTab('google');
             }}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all duration-200 cursor-pointer ${
               googleConnected 
@@ -260,40 +371,8 @@ export default function Agenda() {
           
           <button
             onClick={() => {
-              setIcalSubscribed(!icalSubscribed);
-              if (!icalSubscribed) {
-                const icsContent = [
-                  'BEGIN:VCALENDAR',
-                  'VERSION:2.0',
-                  'PRODID:-//NEXDASH//CRM Calendar//PT',
-                  'CALSCALE:GREGORIAN',
-                  ...events.map(e => [
-                    'BEGIN:VEVENT',
-                    `UID:${e.id}@nexdash.com`,
-                    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-                    `DTSTART:${e.date.replace(/-/g, '')}T${(e.time || '09:00').replace(':', '')}00`,
-                    `SUMMARY:${e.title}`,
-                    `DESCRIPTION:${e.description || e.client || ''}`,
-                    'END:VEVENT'
-                  ].join('\n')),
-                  'END:VCALENDAR'
-                ].join('\n');
-                
-                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-                const link = document.createElement('a');
-                link.href = window.URL.createObjectURL(blob);
-                link.setAttribute('download', 'nexdash_agenda.ics');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                const webcalUrl = `webcal://${window.location.host}/api/calendar/subscribe/user-12345.ics`;
-                navigator.clipboard.writeText(webcalUrl);
-                
-                alert('Inscrição Apple Calendar efetuada! O arquivo "nexdash_agenda.ics" foi baixado e o link Webcal foi copiado para sua área de transferência para colar no Apple Calendar!');
-              } else {
-                alert('Inscrição Apple Calendar removida.');
-              }
+              setIsIntegrationsModalOpen(true);
+              setIntegrationTab('apple');
             }}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all duration-200 cursor-pointer ${
               icalSubscribed 
@@ -412,8 +491,9 @@ export default function Agenda() {
           </h3>
           
           <button 
-            onClick={() => alert("Seletor de data dropdown...")}
+            onClick={() => setShowDatePickerPopup(true)}
             className="p-2 text-zinc-400 hover:text-white rounded-xl border border-[#1f1f1f] bg-[#0a0a0a] hover:bg-[#1a1a1a] transition-all"
+            title="Ir para data específica"
           >
             <Calendar className="h-4 w-4" />
           </button>
@@ -580,7 +660,7 @@ export default function Agenda() {
                         key={evt.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          alert(`Compromisso: ${evt.title}\nHorário: ${evt.time || 'Dia Todo'}\nLocal: ${evt.location || 'Não informado'}`);
+                          setSelectedEvent(evt);
                         }}
                         className={`rounded px-2.5 py-1 text-[10px] font-semibold flex items-center gap-1.5 transition-all truncate leading-relaxed ${
                           evt.type === 'holiday'
@@ -925,130 +1005,522 @@ export default function Agenda() {
 
       {/* ──── MODAL CENTRAL DE INTEGRAÇÕES DE AGENDAS ──── */}
       {isIntegrationsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-body animate-fade-in text-left">
-          <div className="w-full max-w-lg rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 font-body animate-fade-in text-left">
+          <div className="w-full max-w-lg rounded-2xl bg-[#0a0a0a] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
             
             <button 
               onClick={() => setIsIntegrationsModalOpen(false)}
               className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4.5 w-4.5" />
+            </button>
+
+            {integrationTab === 'list' ? (
+              <>
+                <div className="pb-4 border-b border-[#1f1f1f]">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-[#e13a40]" />
+                    Central de Integração de Calendários
+                  </h2>
+                  <p className="text-[11px] text-zinc-500 mt-1">Conecte a agenda do NEXDASH com as suas contas externas favoritas de forma rápida e segura.</p>
+                </div>
+
+                <div className="flex-1 overflow-y-auto py-5 space-y-5 pr-1 scrollbar-thin text-xs">
+                  {/* Google Calendar Row */}
+                  <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg">💙</span>
+                        <div>
+                          <span className="font-bold text-white text-xs block">Google Calendar (iCal Real Sync)</span>
+                          <span className="text-[10px] text-zinc-500">Visualização de compromissos externos em tempo real</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setIntegrationTab('google')}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                          googleConnected 
+                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
+                            : 'bg-[#e13a40] hover:bg-[#c52f34] text-white border-transparent'
+                        }`}
+                      >
+                        {googleConnected ? 'Configurar / Conectado' : 'Conectar'}
+                      </button>
+                    </div>
+                    {googleConnected && googleCalendarUrl && (
+                      <p className="text-[9px] text-zinc-500 truncate bg-zinc-900 px-2.5 py-1.5 rounded-lg">
+                        URL: {googleCalendarUrl}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Apple Calendar Row */}
+                  <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg">🍎</span>
+                        <div>
+                          <span className="font-bold text-white text-xs block">Apple Calendar (iCal Real Sync)</span>
+                          <span className="text-[10px] text-zinc-500">Subscreva ou importe eventos iCloud externos</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setIntegrationTab('apple')}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                          icalSubscribed 
+                            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+                            : 'bg-[#e13a40] hover:bg-[#c52f34] text-white border-transparent'
+                        }`}
+                      >
+                        {icalSubscribed ? 'Configurar / Conectado' : 'Conectar'}
+                      </button>
+                    </div>
+                    {icalSubscribed && appleCalendarUrl && (
+                      <p className="text-[9px] text-zinc-500 truncate bg-zinc-900 px-2.5 py-1.5 rounded-lg">
+                        URL: {appleCalendarUrl}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Export local CRM calendar */}
+                  <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                    <span className="font-bold text-white text-xs block">📤 Exportar Agenda do CRM (WebCal)</span>
+                    <p className="text-[10px] text-zinc-400 leading-relaxed">
+                      Gere um feed de assinatura seguro do NEXDASH. Adicione-o no seu iPhone/Mac/Google para ver todas as reuniões criadas no CRM no seu aplicativo nativo!
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const icsContent = [
+                            'BEGIN:VCALENDAR',
+                            'VERSION:2.0',
+                            'PRODID:-//NEXDASH//CRM Calendar//PT',
+                            'CALSCALE:GREGORIAN',
+                            ...events.map(e => [
+                              'BEGIN:VEVENT',
+                              `UID:${e.id}@nexdash.com`,
+                              `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+                              `DTSTART:${e.date.replace(/-/g, '')}T${(e.time || '09:00').replace(':', '')}00`,
+                              `SUMMARY:${e.title}`,
+                              `DESCRIPTION:${e.description || e.client || ''}`,
+                              'END:VEVENT'
+                            ].join('\n')),
+                            'END:VCALENDAR'
+                          ].join('\n');
+                          
+                          const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                          const link = document.createElement('a');
+                          link.href = window.URL.createObjectURL(blob);
+                          link.setAttribute('download', 'nexdash_agenda.ics');
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          showNotification('Download Concluído', 'O arquivo "nexdash_agenda.ics" contendo seus compromissos locais foi exportado e baixado com sucesso!', 'success');
+                        }}
+                        className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold rounded-lg text-[10px] transition-all flex-1"
+                      >
+                        Baixar Arquivo ICS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const webcalUrl = `webcal://${window.location.host}/api/calendar/subscribe/nexdash_feed.ics`;
+                          navigator.clipboard.writeText(webcalUrl);
+                          showNotification('Link Copiado', 'O endereço Webcal de exportação foi copiado para sua área de transferência para colar no Apple/Google Calendar!', 'success');
+                        }}
+                        className="px-3.5 py-2 bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold rounded-lg text-[10px] transition-all flex-1"
+                      >
+                        Copiar Link Webcal
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Suggestion Form */}
+                  <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">💡</span>
+                      <div>
+                        <span className="font-bold text-white text-xs block">Falta algum calendário?</span>
+                        <span className="text-[10px] text-zinc-500">Sugira novas integrações de agendas para nossa equipe técnica</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        placeholder="Ex: Notion Calendar, Microsoft Outlook..."
+                        value={calendarSuggestion}
+                        onChange={(e) => setCalendarSuggestion(e.target.value)}
+                        className="flex-1 bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-650 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!calendarSuggestion) return;
+                          showNotification('Obrigado!', 'Sugestão de integração recebida. Nossa equipe analisará a viabilidade técnica!', 'success');
+                          setCalendarSuggestion('');
+                        }}
+                        className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white font-bold rounded-lg text-[10px] transition-all"
+                      >
+                        Enviar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#1f1f1f] flex justify-end text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setIsIntegrationsModalOpen(false)}
+                    className="py-2.5 px-6 rounded-xl bg-[#e13a40] hover:bg-[#c52f34] text-xs font-bold text-white shadow-sm transition-all"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </>
+            ) : integrationTab === 'google' ? (
+              <>
+                <div className="pb-4 border-b border-[#1f1f1f] flex items-center justify-between">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>💙 Conectar Google Agenda</span>
+                  </h2>
+                  <button onClick={() => setIntegrationTab('list')} className="text-xs text-zinc-400 hover:text-white">← Voltar</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto py-5 space-y-4 pr-1 text-xs">
+                  <div className="p-3.5 bg-blue-500/5 border border-blue-500/20 text-blue-400 rounded-xl space-y-2">
+                    <span className="font-bold block">Como obter sua URL iCal no Google Agenda:</span>
+                    <ol className="list-decimal pl-4 space-y-1.5 text-[11px] leading-relaxed">
+                      <li>Acesse o <a href="https://calendar.google.com" target="_blank" rel="noopener noreferrer" className="underline font-bold text-[#e13a40]">Google Agenda</a> no seu navegador.</li>
+                      <li>No canto superior direito, clique na engrenagem ⚙️ (Configurações) -&gt; <strong>Configurações</strong>.</li>
+                      <li>No menu lateral esquerdo, sob <strong>Configurações de minhas agendas</strong>, selecione a agenda desejada.</li>
+                      <li>Role até a seção <strong>Integrar agenda</strong> no final da página.</li>
+                      <li>Localize o campo <strong>Endereço secreto em formato iCal</strong> e copie a URL secreta (termina com `.ics`).</li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Endereço Secreto em Formato iCal *</label>
+                    <input
+                      type="text"
+                      placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+                      value={googleCalendarUrl}
+                      onChange={(e) => setGoogleCalendarUrl(e.target.value)}
+                      className="w-full bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg px-3 py-2.5 text-xs text-white placeholder-zinc-650 outline-none focus:border-[#e13a40]"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#1f1f1f] flex justify-between gap-3 text-xs">
+                  {googleConnected && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await apiFetch('/api/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ google_calendar_ical_url: '' })
+                          });
+                          setGoogleCalendarUrl('');
+                          setGoogleConnected(false);
+                          setExternalEvents(prev => prev.filter(e => e.source !== 'google'));
+                          setIntegrationTab('list');
+                          showNotification('Desconectado', 'Integração Google Calendar removida e compromissos sincronizados limpos.', 'info');
+                        } catch (err) {
+                          showNotification('Erro', 'Falha ao salvar configuração.', 'error');
+                        }
+                      }}
+                      className="py-2.5 px-4 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold transition-all"
+                    >
+                      Desconectar
+                    </button>
+                  )}
+                  <div className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!googleCalendarUrl) {
+                        showNotification('URL Obrigatória', 'Por favor, insira a URL do feed secreto .ics do Google Agenda.', 'error');
+                        return;
+                      }
+                      try {
+                        const res = await apiFetch('/api/settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ google_calendar_ical_url: googleCalendarUrl })
+                        });
+                        if (res.ok) {
+                          setGoogleConnected(true);
+                          fetchAndParseCalendarFeed(googleCalendarUrl, 'google');
+                          setIntegrationTab('list');
+                          showNotification('Conectado com Sucesso!', 'O feed Google Calendar foi sincronizado de forma funcional no CRM.', 'success');
+                        }
+                      } catch (err) {
+                        showNotification('Erro', 'Erro ao salvar configurações do Google Calendar.', 'error');
+                      }
+                    }}
+                    className="py-2.5 px-6 rounded-xl bg-gradient-primary text-white font-bold transition-all"
+                  >
+                    Salvar e Sincronizar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="pb-4 border-b border-[#1f1f1f] flex items-center justify-between">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>🍎 Conectar Apple Calendar</span>
+                  </h2>
+                  <button onClick={() => setIntegrationTab('list')} className="text-xs text-zinc-400 hover:text-white">← Voltar</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto py-5 space-y-4 pr-1 text-xs">
+                  <div className="p-3.5 bg-blue-500/5 border border-blue-500/20 text-blue-400 rounded-xl space-y-2">
+                    <span className="font-bold block">Como obter a URL do Calendário iCloud:</span>
+                    <ol className="list-decimal pl-4 space-y-1.5 text-[11px] leading-relaxed">
+                      <li>Abra o aplicativo <strong>Calendário</strong> no Mac ou iCloud.com.</li>
+                      <li>Clique no ícone de compartilhamento ao lado do nome do calendário.</li>
+                      <li>Marque a opção <strong>Calendário Público</strong>.</li>
+                      <li>Copie o endereço Webcal (começa com `webcal://`).</li>
+                      <li>Cole o endereço no campo abaixo!</li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">URL do Feed iCloud (WebCal) *</label>
+                    <input
+                      type="text"
+                      placeholder="webcal://p64-caldav.icloud.com/published/2/..."
+                      value={appleCalendarUrl}
+                      onChange={(e) => setAppleCalendarUrl(e.target.value)}
+                      className="w-full bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg px-3 py-2.5 text-xs text-white placeholder-zinc-650 outline-none focus:border-[#e13a40]"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#1f1f1f] flex justify-between gap-3 text-xs">
+                  {icalSubscribed && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await apiFetch('/api/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ apple_calendar_ical_url: '' })
+                          });
+                          setAppleCalendarUrl('');
+                          setIcalSubscribed(false);
+                          setExternalEvents(prev => prev.filter(e => e.source !== 'apple'));
+                          setIntegrationTab('list');
+                          showNotification('Desconectado', 'Sincronização Apple Calendar desativada com sucesso.', 'info');
+                        } catch (err) {
+                          showNotification('Erro', 'Falha ao salvar configuração.', 'error');
+                        }
+                      }}
+                      className="py-2.5 px-4 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold transition-all"
+                    >
+                      Desconectar
+                    </button>
+                  )}
+                  <div className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!appleCalendarUrl) {
+                        showNotification('URL Obrigatória', 'Por favor, insira a URL do feed público do Apple Calendar.', 'error');
+                        return;
+                      }
+                      // Convert webcal to https just in case
+                      const cleanUrl = appleCalendarUrl.replace('webcal://', 'https://');
+                      try {
+                        const res = await apiFetch('/api/settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ apple_calendar_ical_url: cleanUrl })
+                        });
+                        if (res.ok) {
+                          setIcalSubscribed(true);
+                          fetchAndParseCalendarFeed(cleanUrl, 'apple');
+                          setIntegrationTab('list');
+                          showNotification('Conectado com Sucesso!', 'O feed do Apple Calendar foi conectado com sucesso.', 'success');
+                        }
+                      } catch (err) {
+                        showNotification('Erro', 'Erro ao salvar configurações do Apple Calendar.', 'error');
+                      }
+                    }}
+                    className="py-2.5 px-6 rounded-xl bg-gradient-primary text-white font-bold transition-all"
+                  >
+                    Salvar e Sincronizar
+                  </button>
+                </div>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ──── CUSTOM EVENT DETAIL DIALOG (GORGEOUS MODAL) ──── */}
+      {selectedEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 font-body animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col">
+            <button 
+              onClick={() => setSelectedEvent(null)}
+              className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10"
+            >
+              <X className="h-4.5 w-4.5" />
             </button>
 
             <div className="pb-4 border-b border-[#1f1f1f]">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-[#e13a40]" />
-                Central de Integração de Calendários
-              </h2>
-              <p className="text-[11px] text-zinc-500 mt-1">Conecte a agenda do NEXDASH com as suas contas externas favoritas de forma rápida e segura.</p>
+              <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider mb-2 ${
+                selectedEvent.isExternal 
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                  : selectedEvent.type === 'holiday'
+                    ? 'bg-[#e13a40]/10 text-[#e13a40] border border-[#e13a40]/20'
+                    : 'bg-[#e13a40]/15 text-[#e13a40] border-l-2 border-[#e13a40]'
+              }`}>
+                {selectedEvent.isExternal ? `Sincronizado via ${selectedEvent.source === 'google' ? 'Google' : 'Apple'}` : selectedEvent.type === 'holiday' ? 'Feriado' : 'Compromisso Local'}
+              </span>
+              <h2 className="text-base font-bold text-white tracking-tight">{selectedEvent.title}</h2>
             </div>
 
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto py-5 space-y-5 pr-1 scrollbar-thin text-xs">
-              
-              {/* Google Calendar */}
-              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">💙</span>
-                    <div>
-                      <span className="font-bold text-white text-xs block">Google Calendar</span>
-                      <span className="text-[10px] text-zinc-500">Sincronização bidirecional de eventos e tarefas em tempo real</span>
+            <div className="py-4 space-y-3.5 text-xs text-zinc-300">
+              {selectedEvent.description && (
+                <div className="space-y-1">
+                  <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Descrição</span>
+                  <p className="bg-[#121212] border border-[#1f1f1f] rounded-xl p-3 text-zinc-300 leading-relaxed whitespace-pre-wrap">{selectedEvent.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 bg-[#121212] border border-[#1f1f1f] rounded-xl p-3.5">
+                <div>
+                  <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Data</span>
+                  <span className="text-zinc-200 font-semibold">{new Date(selectedEvent.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Horário</span>
+                  <span className="text-zinc-200 font-semibold">{selectedEvent.time || 'Dia Todo'}</span>
+                </div>
+              </div>
+
+              {(selectedEvent.location || selectedEvent.client || selectedEvent.project) && (
+                <div className="space-y-2.5 bg-[#121212] border border-[#1f1f1f] rounded-xl p-3.5">
+                  {selectedEvent.location && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-[#e13a40] shrink-0" />
+                      <div>
+                        <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider block">Local</span>
+                        <span className="text-zinc-200">{selectedEvent.location}</span>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setGoogleConnected(!googleConnected);
-                      alert(googleConnected ? 'Google Calendar desconectado.' : 'Google Calendar conectado via OAuth com sucesso!');
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
-                      googleConnected 
-                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
-                        : 'bg-[#e13a40] hover:bg-[#c52f34] text-white'
-                    }`}
-                  >
-                    {googleConnected ? 'Conectado' : 'Conectar Google'}
-                  </button>
-                </div>
-                <p className="text-[10px] text-zinc-400 leading-relaxed">
-                  <strong>Importante:</strong> Esta integração necessita de credenciais OAuth ativas. Ao clicar em Conectar, você será direcionado para o fluxo seguro do Google para aprovar permissões de acesso ao seu calendário.
-                </p>
-              </div>
-
-              {/* Apple Calendar */}
-              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🍎</span>
-                    <div>
-                      <span className="font-bold text-white text-xs block">Apple Calendar (iCal WebCal)</span>
-                      <span className="text-[10px] text-zinc-500">Assinatura direta no iPhone, iPad ou Mac com 1 clique</span>
+                  )}
+                  {selectedEvent.client && (
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-[#e13a40] shrink-0" />
+                      <div>
+                        <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider block">Cliente</span>
+                        <span className="text-zinc-200">{selectedEvent.client}</span>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`webcal://${window.location.host}/api/ical/1`);
-                      setIcalSubscribed(true);
-                      alert('Link iCal copiado para a área de transferência! No iPhone ou Mac, acesse Calendário -> Adicionar Calendário de Assinatura e cole o link.');
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-                      icalSubscribed 
-                        ? 'bg-zinc-800 border-zinc-700 text-zinc-200' 
-                        : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300'
-                    }`}
-                  >
-                    {icalSubscribed ? 'Link Copiado!' : 'Copiar iCal Link'}
-                  </button>
+                  )}
                 </div>
-                <p className="text-[10px] text-zinc-400 leading-relaxed">
-                  Gere um feed de assinatura seguro no formato WebCal. Todas as reuniões e compromissos criados no CRM aparecerão automaticamente no aplicativo nativo do iOS/macOS de forma passiva.
-                </p>
-              </div>
-
-              {/* Integration suggestions form */}
-              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">💡</span>
-                  <div>
-                    <span className="font-bold text-white text-xs block">Falta algum calendário?</span>
-                    <span className="text-[10px] text-zinc-500">Sugira novas integrações de agendas para nossa equipe técnica</span>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  <input 
-                    type="text"
-                    placeholder="Ex: Notion Calendar, Microsoft Outlook, Cron..."
-                    value={calendarSuggestion}
-                    onChange={(e) => setCalendarSuggestion(e.target.value)}
-                    className="flex-1 bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-650 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!calendarSuggestion) return;
-                      alert('Sugestão enviada com sucesso! Analisaremos a integração para os próximos lançamentos.');
-                      setCalendarSuggestion('');
-                    }}
-                    className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white font-bold rounded-lg text-[10px] transition-all"
-                  >
-                    Enviar
-                  </button>
-                </div>
-              </div>
-
+              )}
             </div>
 
-            <div className="pt-4 border-t border-[#1f1f1f] flex justify-end text-xs">
+            <div className="pt-4 border-t border-[#1f1f1f] flex items-center justify-between gap-3 text-xs">
+              {!selectedEvent.isExternal && selectedEvent.type !== 'holiday' && (
+                <button
+                  onClick={() => {
+                    const newEvents = events.filter(e => e.id !== selectedEvent.id);
+                    saveEvents(newEvents);
+                    setSelectedEvent(null);
+                    showNotification('Excluído', 'Compromisso removido da sua agenda com sucesso.', 'success');
+                  }}
+                  className="py-2 px-4 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-all font-semibold"
+                >
+                  Excluir
+                </button>
+              )}
+              <div className="flex-1" />
               <button
-                type="button"
-                onClick={() => setIsIntegrationsModalOpen(false)}
-                className="py-2.5 px-6 rounded-xl bg-[#e13a40] hover:bg-[#c52f34] text-xs font-bold text-white shadow-sm transition-all"
+                onClick={() => setSelectedEvent(null)}
+                className="py-2 px-6 rounded-xl bg-zinc-900 border border-[#1f1f1f] text-zinc-350 hover:text-white transition-all font-semibold"
               >
-                Concluir
+                Fechar
               </button>
             </div>
+          </div>
+        </div>
+      )}
 
+      {/* ──── MINI DATE PICKER POPUP ──── */}
+      {showDatePickerPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 font-body animate-fade-in">
+          <div className="w-full max-w-xs rounded-2xl bg-[#0a0a0a] border border-[#1f1f1f] text-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#1f1f1f] pb-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Ir Para Data</h4>
+              <button onClick={() => setShowDatePickerPopup(false)} className="text-zinc-500 hover:text-white"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] text-zinc-500 font-bold uppercase block">Selecione a Data</label>
+              <input
+                type="date"
+                className="w-full bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-650 outline-none focus:border-[#e13a40] font-mono"
+                defaultValue={`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-23`}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const [y, m, d] = e.target.value.split('-').map(Number);
+                    setCurrentDate(new Date(y, m - 1, d || 1));
+                    setShowDatePickerPopup(false);
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => setShowDatePickerPopup(false)}
+                className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-350 hover:text-white rounded-lg text-[10px] font-bold transition-all"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ──── GLASSMORPHIC GLASS SYSTEM ALERT OVERLAY ──── */}
+      {systemAlert && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-body animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-[#1f1f1f] text-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              {systemAlert.type === 'error' ? (
+                <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 shrink-0">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+              ) : systemAlert.type === 'success' ? (
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0">
+                  <Check className="h-5 w-5" />
+                </div>
+              ) : (
+                <div className="p-2 rounded-xl bg-[#e13a40]/10 border border-[#e13a40]/30 text-[#e13a40] shrink-0">
+                  <Calendar className="h-5 w-5" />
+                </div>
+              )}
+              <div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">{systemAlert.title || 'Alerta'}</h3>
+                <p className="text-[11px] text-zinc-400 mt-1 whitespace-pre-line leading-relaxed">{systemAlert.message}</p>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setSystemAlert(null)}
+                className="px-5 py-2 bg-gradient-primary text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-glow hover:scale-105 transition-all duration-200 cursor-pointer"
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

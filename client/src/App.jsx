@@ -245,7 +245,7 @@ function AppLayout() {
             <img 
               src={userSettings.profile_avatar || userSettings.onboarding_logo} 
               alt="CRM Brand Watermark" 
-              className="w-[45vh] h-[45vh] max-w-[400px] max-h-[400px] object-contain opacity-[0.012] pointer-events-none select-none" 
+              className="w-[75vh] h-[75vh] max-w-[700px] max-h-[700px] object-contain brightness-0 invert opacity-[0.055] pointer-events-none select-none" 
             />
           </div>
         )}

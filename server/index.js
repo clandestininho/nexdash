@@ -74,6 +74,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Proxy endpoint to fetch external calendar .ics files bypassing CORS
+app.get('/api/proxy-ical', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'URL parameter is required' });
+  try {
+    const fetchResponse = await fetch(url);
+    if (!fetchResponse.ok) throw new Error(`HTTP error! status: ${fetchResponse.status}`);
+    const icsContent = await fetchResponse.text();
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.send(icsContent);
+  } catch (err) {
+    console.error('Error proxying iCal feed:', err);
+    res.status(500).json({ error: 'Failed to fetch calendar feed' });
+  }
+});
+
 // ─── Socket.io Events ───────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
