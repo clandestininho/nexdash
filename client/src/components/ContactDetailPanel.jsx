@@ -193,7 +193,7 @@ export default function ContactDetailPanel({ contact, history = [], visible, onC
       pais: contact.pais || 'Brasil',
       value: contact.project_value || ''
     });
-    window.location.href = `/proposals?${params.toString()}`;
+    window.location.href = `/orçamentos?${params.toString()}`;
   };
 
   const stageColor = contact ? getStageColor(contact.current_stage) : '#9E9E9E';

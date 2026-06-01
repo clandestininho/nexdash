@@ -28,6 +28,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { apiFetch } from '../lib/api';
 import { socket } from '../lib/socket';
+import { playBeep, playNotification } from '../lib/sound';
 import { getStageColor, getStageLabel } from '../lib/stages';
 import { cn, formatRelativeTime, formatPhone } from '../lib/utils';
 import { Badge } from '../components/ui/Badge';
@@ -335,6 +336,11 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
         });
+      }
+
+      // Play premium synthesized notification tone for new incoming WhatsApp messages!
+      if (msg.from_me !== 1) {
+        playNotification();
       }
 
       // 2. Update conversations list dynamically (last message, activity) and move to top

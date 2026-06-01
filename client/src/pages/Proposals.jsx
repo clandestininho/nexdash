@@ -34,6 +34,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { apiFetch } from '../lib/api';
+import { playBeep, playBell, playWarning, playNotification } from '../lib/sound';
 
 const DEFAULT_CONTRACT_TEMPLATE = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 
@@ -155,6 +156,19 @@ export default function Proposals() {
 
   const showToastNotification = (message) => {
     setToastMessage(message);
+    
+    // Play customized synthesized sound cues reactively based on message text!
+    const lowerMsg = message.toLowerCase();
+    if (lowerMsg.includes('erro') || lowerMsg.includes('falha') || lowerMsg.includes('remover')) {
+      playWarning();
+    } else if (lowerMsg.includes('copiado') || lowerMsg.includes('link')) {
+      playBeep();
+    } else if (lowerMsg.includes('aprovado') || lowerMsg.includes('concluído') || lowerMsg.includes('sucesso') || lowerMsg.includes('gerado')) {
+      playBell();
+    } else {
+      playNotification();
+    }
+
     setTimeout(() => {
       setToastMessage('');
     }, 4500);

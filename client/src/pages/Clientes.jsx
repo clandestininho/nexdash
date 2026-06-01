@@ -36,6 +36,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { apiFetch } from '../lib/api';
 import { formatPhone, formatRelativeTime } from '../lib/utils';
+import { playBeep, playBell, playNotification } from '../lib/sound';
 
 export default function Clientes() {
   const [contacts, setContacts] = useState([]);
@@ -186,16 +187,33 @@ export default function Clientes() {
   const handleContactUpdate = useCallback((updatedContact) => {
     if (!updatedContact || !updatedContact.id) return;
     
+    let isTransitionToClosed = false;
+    let isNewLead = false;
+
     setContacts((prev) => {
       const next = [...prev];
       const idx = next.findIndex((c) => String(c.id) === String(updatedContact.id));
       if (idx !== -1) {
+        const oldContact = next[idx];
+        if (oldContact.current_stage !== 'fechado' && updatedContact.current_stage === 'fechado') {
+          isTransitionToClosed = true;
+        }
         next[idx] = { ...next[idx], ...updatedContact };
       } else {
+        isNewLead = true;
         next.unshift(updatedContact);
       }
-      return next.sort((a, b) => new Date(b.last_activity) - new Date(a.last_activity));
+      return next.sort((a, b) => new Date(b.last_activity || Date.now()) - new Date(a.last_activity || Date.now()));
     });
+
+    // Play beautiful browser-synthesized Web Audio tones entirely via JS code!
+    if (isTransitionToClosed) {
+      playBell(); // Play closed sale chime!
+    } else if (isNewLead) {
+      playNotification(); // Play arpeggio for new lead
+    } else {
+      playBeep(); // Short tone for ordinary updates
+    }
 
     setSelectedContact((prev) => {
       if (prev && String(prev.id) === String(updatedContact.id)) {
