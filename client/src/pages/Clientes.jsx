@@ -47,6 +47,8 @@ export default function Clientes() {
   const [selectedContact, setSelectedContact] = useState(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [contactHistory, setContactHistory] = useState([]);
+  const [contactsSubTab, setContactsSubTab] = useState('leads'); // 'leads' or 'clientes'
+
   
   // Registration Modal State
   const [isCadastrarModalOpen, setIsCadastrarModalOpen] = useState(false);
@@ -480,11 +482,17 @@ export default function Clientes() {
       const emailMatch = (c.email || '').toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesSearch = nameMatch || phoneMatch || lastMsgMatch || emailMatch;
+      
+      // Filter by Leads vs Clientes tab
+      const isCliente = c.current_stage === 'fechado';
+      if (contactsSubTab === 'leads' && isCliente) return false;
+      if (contactsSubTab === 'clientes' && !isCliente) return false;
+
       const matchesStage = stageFilter === 'todos' || c.current_stage === stageFilter;
       
       return matchesSearch && matchesStage;
     });
-  }, [contacts, searchQuery, stageFilter, showArchived]);
+  }, [contacts, searchQuery, stageFilter, showArchived, contactsSubTab]);
 
   // Calculate metrics based on active contacts (not archived)
   const activeContacts = useMemo(() => {
@@ -723,6 +731,44 @@ export default function Clientes() {
           <span className="text-xs text-zinc-400 font-semibold font-body mt-1 block">valor mensal total</span>
         </div>
 
+      </div>
+
+      {/* Leads / Clientes Sub-Tabs Navigation */}
+      <div className="flex border-b border-[#1f1f1f] gap-6 pt-2">
+        <button
+          onClick={() => setContactsSubTab('leads')}
+          className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 flex items-center gap-2 ${
+            contactsSubTab === 'leads'
+              ? 'border-[#e13a40] text-[#e13a40]'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>Leads</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            contactsSubTab === 'leads'
+              ? 'bg-[#e13a40] text-white shadow-[0_0_8px_rgba(225,58,64,0.3)]'
+              : 'bg-[#1a1a1a] text-zinc-400'
+          }`}>
+            {contacts.filter(c => c.archived !== true && c.current_stage !== 'fechado').length}
+          </span>
+        </button>
+        <button
+          onClick={() => setContactsSubTab('clientes')}
+          className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 flex items-center gap-2 ${
+            contactsSubTab === 'clientes'
+              ? 'border-[#e13a40] text-[#e13a40]'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>Clientes</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            contactsSubTab === 'clientes'
+              ? 'bg-[#e13a40] text-white shadow-[0_0_8px_rgba(225,58,64,0.3)]'
+              : 'bg-[#1a1a1a] text-zinc-400'
+          }`}>
+            {contacts.filter(c => c.archived !== true && c.current_stage === 'fechado').length}
+          </span>
+        </button>
       </div>
 
       {/* Clientes Card-based Grid Database Layout (DGFlow visual clone) */}

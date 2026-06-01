@@ -172,6 +172,38 @@ router.post('/public/proposals/:id/approve', (req, res) => {
       approvedDate: new Date().toLocaleDateString('pt-BR')
     });
 
+    // Move contact to "fechado" in the Kanban SQLite DB when signed
+    if (proposal.contact_id) {
+      try {
+        const contact = getContactById(userId, proposal.contact_id);
+        if (contact && contact.current_stage !== 'fechado') {
+          const previousStage = contact.current_stage;
+          updateContactStage(userId, proposal.contact_id, 'fechado', 1.0, 'Proposta comercial assinada/aprovada digitalmente pelo cliente');
+          
+          const logEntry = {
+            contact_id: proposal.contact_id,
+            previous_stage: previousStage,
+            new_stage: 'fechado',
+            confidence: 1.0,
+            reason: 'Proposta comercial assinada/aprovada digitalmente pelo cliente',
+            was_manual: 0
+          };
+          addClassificationLog(userId, logEntry);
+
+          if (ioInstance) {
+            const updatedContact = getContactById(userId, proposal.contact_id);
+            ioInstance.to(`user_${userId}`).emit('contact:updated', updatedContact);
+            ioInstance.to(`user_${userId}`).emit('classification:new', {
+              ...logEntry,
+              contact_name: updatedContact?.name || proposal.clientName
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[Route:Proposals] Error updating contact stage on signature:', err.message);
+      }
+    }
+
     // Notify backend WebSocket that proposal was approved (client signed)
     if (ioInstance) {
       ioInstance.to(`user_${userId}`).emit('proposal:updated', updated);

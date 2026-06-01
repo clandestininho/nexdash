@@ -140,30 +140,27 @@ export default function PricingModal() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await apiFetch('/api/auth/subscribe', {
+      const response = await apiFetch('/api/billing/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ plan })
+        body: JSON.stringify({ plan, billingPeriod })
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Erro ao realizar assinatura.');
+        throw new Error(data.error || 'Erro ao gerar link de checkout.');
       }
 
-      // Update localStorage profile
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      // Dispatch global reactive update event
-      window.dispatchEvent(new Event('user_plan_updated'));
-      
-      alert(`Parabéns! Você assinou o ${getPlanName(plan)} com sucesso. As funcionalidades foram liberadas instantaneamente.`);
-      setIsOpen(false);
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error('Link de checkout não retornado pelo servidor.');
+      }
     } catch (err) {
-      alert(`Erro: ${err.message}`);
+      alert(`Erro no checkout: ${err.message}`);
     } finally {
       setIsLoading(false);
       setSubmittingPlan(null);

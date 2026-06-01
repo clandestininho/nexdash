@@ -119,6 +119,15 @@ const NICHE_PRESETS = {
       { id: 'ag-5', title: 'Gestão de Marca e CRM', price: 2500.00, category: 'Marketing' }
     ]
   },
+  mentoria_consultoria: {
+    name: 'Mentoria / Consultoria',
+    services: [
+      { id: 'mc-1', title: 'Sessão de Diagnóstico Individual', price: 500.00, category: 'Consultoria' },
+      { id: 'mc-2', title: 'Programa de Mentoria (Mensal)', price: 2000.00, category: 'Mentoria' },
+      { id: 'mc-3', title: 'Consultoria Estratégica Completa', price: 5000.00, category: 'Consultoria' },
+      { id: 'mc-4', title: 'Análise e Otimização de Processos', price: 1500.00, category: 'Consultoria' }
+    ]
+  },
   outro: {
     name: 'Outro',
     services: [
@@ -354,7 +363,7 @@ export default function Onboarding({ onComplete }) {
         profile_moeda: formData.profile_moeda,
         profile_avatar: formData.profile_avatar || formData.onboarding_logo,
         
-        onboarding_nicho: formData.onboarding_nicho,
+        onboarding_nicho: formData.onboarding_nicho === 'outro' ? formData.onboarding_nicho_custom : formData.onboarding_nicho,
         onboarding_services: JSON.stringify(allServices),
         onboarding_layout: formData.onboarding_layout,
         onboarding_cores: formData.onboarding_cores,
@@ -789,6 +798,7 @@ export default function Onboarding({ onComplete }) {
                       fotografo: Camera,
                       copywriter: PenTool, 
                       agencia: Building, 
+                      mentoria_consultoria: HelpCircle,
                       outro: Sparkles
                     };
                     const IconComponent = nicheIcons[key] || Sparkles;
@@ -804,7 +814,7 @@ export default function Onboarding({ onComplete }) {
                         }`}
                       >
                         <div className="p-2 bg-[#e13a40]/10 rounded-lg text-[#e13a40] shrink-0">
-                          <IconComponent className="h-5 w-5" />
+                           <IconComponent className="h-5 w-5" />
                         </div>
                         <div className="space-y-0.5">
                           <span className="text-xs font-bold text-white block">{niche.name}</span>
@@ -814,6 +824,19 @@ export default function Onboarding({ onComplete }) {
                     );
                   })}
                 </div>
+                
+                {formData.onboarding_nicho === 'outro' && (
+                  <div className="space-y-1.5 pt-2 animate-fade-in">
+                    <label className="text-[10px] uppercase font-bold tracking-wider text-zinc-450 pl-0.5">Especifique o seu nicho personalizado</label>
+                    <input 
+                      type="text"
+                      value={formData.onboarding_nicho_custom || ''}
+                      onChange={e => setFormData({ ...formData, onboarding_nicho_custom: e.target.value })}
+                      placeholder="Ex: Nutricionista, Advogado, Professor..."
+                      className="w-full bg-[#0b0b0d] border border-zinc-800 focus:border-[#e13a40] focus:ring-1 focus:ring-[#e13a40]/30 h-11 rounded-xl px-4 text-white text-xs outline-none transition-all"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -1271,9 +1294,15 @@ export default function Onboarding({ onComplete }) {
                     alert('Por favor, informe seu nome e o nome da sua empresa.');
                     return;
                   }
-                  if (step === 6 && !formData.onboarding_nicho) {
-                    alert('Por favor, selecione seu nicho de atuação para prosseguir.');
-                    return;
+                  if (step === 6) {
+                    if (!formData.onboarding_nicho) {
+                      alert('Por favor, selecione seu nicho de atuação para prosseguir.');
+                      return;
+                    }
+                    if (formData.onboarding_nicho === 'outro' && !formData.onboarding_nicho_custom?.trim()) {
+                      alert('Por favor, especifique o seu nicho personalizado.');
+                      return;
+                    }
                   }
                   nextStep();
                 }}

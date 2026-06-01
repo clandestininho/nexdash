@@ -20,7 +20,9 @@ import {
   Trash2,
   Calendar,
   X,
-  MessageSquare
+  MessageSquare,
+  Send,
+  Sparkles
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
@@ -69,6 +71,78 @@ export default function AdminDashboard() {
     billing_cycle: 'monthly',
     role: 'user'
   });
+
+  const [provForm, setProvForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    plan: 'trial'
+  });
+  const [provLoading, setProvLoading] = useState(false);
+
+  const handleProvisionUser = async (e) => {
+    e.preventDefault();
+    if (!provForm.name || !provForm.email) {
+      showFeedback('error', 'Nome e E-mail são obrigatórios.');
+      return;
+    }
+
+    try {
+      setProvLoading(true);
+      showFeedback('info', 'Provisionando cliente no banco de dados Master...');
+      
+      const res = await apiFetch('/api/admin/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(provForm)
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        const emailStatus = data.notifications.email.sent ? 'E-mail enviado' : 'E-mail falhou';
+        let waStatus = 'WhatsApp ignorado';
+        if (data.notifications.whatsapp.status === 'sent') waStatus = 'WhatsApp enviado';
+        else if (data.notifications.whatsapp.status === 'no_admin_connection') waStatus = 'WhatsApp pendente (Admin desconectado)';
+        else if (data.notifications.whatsapp.status === 'failed') waStatus = 'WhatsApp falhou';
+
+        showFeedback('success', `Cliente provisionado! (${emailStatus} | ${waStatus})`);
+        
+        setProvForm({ name: '', email: '', phone: '', plan: 'trial' });
+        loadUsers();
+        loadStats();
+      } else {
+        showFeedback('error', data.error || 'Erro no provisionamento.');
+      }
+    } catch (err) {
+      showFeedback('error', 'Erro ao conectar ao servidor.');
+    } finally {
+      setProvLoading(false);
+    }
+  };
+
+  const handleResendWelcome = async (userId) => {
+    try {
+      showFeedback('info', 'Reenviando credenciais de acesso...');
+      const res = await apiFetch('/api/admin/resend-welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const emailStatus = data.notifications.email.sent ? 'E-mail enviado' : 'E-mail falhou';
+        let waStatus = 'WhatsApp ignorado';
+        if (data.notifications.whatsapp.status === 'sent') waStatus = 'WhatsApp enviado';
+        else if (data.notifications.whatsapp.status === 'no_admin_connection') waStatus = 'WhatsApp pendente (Admin desconectado)';
+
+        showFeedback('success', `Credenciais reenviadas! (${emailStatus} | ${waStatus})`);
+      } else {
+        showFeedback('error', data.error || 'Erro ao reenviar credenciais.');
+      }
+    } catch (err) {
+      showFeedback('error', 'Erro ao conectar ao servidor.');
+    }
+  };
 
   // Load telemetry data from server
   const loadStats = async () => {
@@ -628,7 +702,109 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'subscribers' && (
-          <div className="rounded-2xl border border-[#1f1f1f] bg-[#0c0c0e] overflow-hidden shadow-sm">
+          <div className="space-y-6">
+            
+            {/* Form de Provisionamento Manual */}
+            <div className="rounded-2xl border border-[#1f1f1f] bg-[#0c0c0e] p-6 shadow-sm relative overflow-hidden text-left">
+              <div className="absolute top-0 right-0 h-32 w-32 bg-[#e13a40]/5 rounded-full blur-[40px] pointer-events-none" />
+              
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2.5 bg-[#e13a40]/10 text-[#e13a40] rounded-xl">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Provisionar Novo Cliente (Manual)
+                  </h3>
+                  <p className="text-xs text-zinc-450 mt-0.5 font-body">
+                    Cadastre um cliente que comprou via WhatsApp ou pessoalmente. O acesso é liberado de imediato e as credenciais enviadas automaticamente.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleProvisionUser} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                {/* Nome */}
+                <div className="space-y-1.5 font-body">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 pl-0.5">
+                    Nome Completo
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Amanda Costa"
+                    value={provForm.name}
+                    onChange={(e) => setProvForm({ ...provForm, name: e.target.value })}
+                    className="w-full bg-[#121214] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-650 outline-none focus:border-[#e13a40] transition-all"
+                    required
+                  />
+                </div>
+
+                {/* E-mail */}
+                <div className="space-y-1.5 font-body">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 pl-0.5">
+                    E-mail Corporativo
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="Ex: amanda@empresa.com"
+                    value={provForm.email}
+                    onChange={(e) => setProvForm({ ...provForm, email: e.target.value })}
+                    className="w-full bg-[#121214] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-650 outline-none focus:border-[#e13a40] transition-all"
+                    required
+                  />
+                </div>
+
+                {/* WhatsApp */}
+                <div className="space-y-1.5 font-body">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 pl-0.5">
+                    WhatsApp (DDI + DDD + Num)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 5511999998888"
+                    value={provForm.phone}
+                    onChange={(e) => setProvForm({ ...provForm, phone: e.target.value })}
+                    className="w-full bg-[#121214] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-650 outline-none focus:border-[#e13a40] transition-all"
+                  />
+                </div>
+
+                {/* Seletor de Plano & Botão */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5 font-body">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 pl-0.5">
+                      Plano Comercial
+                    </label>
+                    <select
+                      value={provForm.plan}
+                      onChange={(e) => setProvForm({ ...provForm, plan: e.target.value })}
+                      className="w-full bg-[#121214] border border-zinc-800 rounded-xl px-2 py-2 text-xs text-white outline-none focus:border-[#e13a40] transition-all cursor-pointer h-[36px] font-bold"
+                    >
+                      <option value="trial">Trial (7 Dias)</option>
+                      <option value="basico">Básico (R$49)</option>
+                      <option value="pro">Pro (R$99)</option>
+                      <option value="next">NEXT (R$199)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={provLoading}
+                    className="h-[36px] rounded-xl bg-gradient-to-r from-[#e13a40] to-orange-600 hover:from-[#ff483d] hover:to-orange-500 text-[10px] font-black text-white uppercase tracking-wider transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-lg shadow-[#e13a40]/10 cursor-pointer"
+                  >
+                    {provLoading ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="h-3.5 w-3.5 shrink-0" />
+                        <span>Provisionar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* subscribers list card */}
+            <div className="rounded-2xl border border-[#1f1f1f] bg-[#0c0c0e] overflow-hidden shadow-sm">
             
             {/* Header controls: Search & filter */}
             <div className="p-6 border-b border-[#1f1f1f] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#0e0e11]/60">
@@ -794,6 +970,15 @@ export default function AdminDashboard() {
                                 <Edit2 className="h-3.5 w-3.5" />
                               </button>
 
+                              {/* Reenviar credenciais de boas-vindas */}
+                              <button
+                                onClick={() => handleResendWelcome(user.id)}
+                                className="p-2 rounded-lg bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/20 hover:border-indigo-500/40 text-indigo-400 transition-all"
+                                title="Reenviar e-mail e WhatsApp de boas-vindas"
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                              </button>
+
                               {/* Manual WhatsApp alert */}
                               <button
                                 onClick={() => handleSendReminder(user.id, 'whatsapp')}
@@ -827,7 +1012,8 @@ export default function AdminDashboard() {
             </div>
 
           </div>
-        )}
+        </div>
+      )}
 
         {activeTab === 'automations' && (
           <div className="rounded-2xl border border-[#1f1f1f] bg-[#0c0c0e] p-6 shadow-sm space-y-6">

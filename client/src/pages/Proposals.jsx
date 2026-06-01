@@ -200,6 +200,12 @@ export default function Proposals() {
   const [wizClientCity, setWizClientCity] = useState('');
   const [wizClientState, setWizClientState] = useState('');
 
+  const [wizContactId, setWizContactId] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [contactSearchTerm, setContactSearchTerm] = useState('');
+  const [isContactDropdownOpen, setIsContactDropdownOpen] = useState(false);
+
+
   // Step 2: Selecione os Serviços
   const [selectedServices, setSelectedServices] = useState([]);
   const [isServiceDropdownOpen, setIsServiceDropdownOpen] = useState(false);
@@ -360,6 +366,82 @@ export default function Proposals() {
     };
   }, []);
 
+  // Fetch all contacts on mount
+  useEffect(() => {
+    const fetchContacts = async () => {
+      try {
+        const res = await apiFetch('/api/contacts');
+        if (res.ok) {
+          const data = await res.json();
+          const stagesData = data.stages || {};
+          const flat = [];
+          Object.keys(stagesData).forEach((stageId) => {
+            flat.push(...(stagesData[stageId] || []));
+          });
+          
+          const stored = localStorage.getItem('dgflow_local_contacts');
+          const locals = stored ? JSON.parse(stored) : [];
+          
+          const mergedMap = new Map();
+          flat.forEach(c => {
+            const localOver = locals.find(l => String(l.id) === String(c.id) || String(l.phone) === String(c.phone));
+            if (localOver) {
+              mergedMap.set(c.id, { ...c, ...localOver });
+            } else {
+              mergedMap.set(c.id, c);
+            }
+          });
+          
+          locals.forEach(c => {
+            if (!mergedMap.has(c.id)) {
+              mergedMap.set(c.id, c);
+            }
+          });
+          
+          const mergedList = Array.from(mergedMap.values());
+          setContacts(mergedList);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar contatos no Proposals:', err);
+        const stored = localStorage.getItem('dgflow_local_contacts');
+        if (stored) {
+          setContacts(JSON.parse(stored));
+        }
+      }
+    };
+    
+    fetchContacts();
+  }, []);
+
+  // Parse URL parameters for pre-filling and automatically opening Proposals wizard
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const contactId = params.get('contactId');
+    if (contactId) {
+      setWizContactId(contactId);
+      setWizClientName(params.get('name') || '');
+      setWizClientEmail(params.get('email') || '');
+      setWizClientPhone(params.get('phone') || '');
+      setWizClientCpfCnpj(params.get('doc') || '');
+      setWizClientAddress(params.get('address') || '');
+      setWizClientNum(params.get('number') || '');
+      setWizClientBairro(params.get('neighborhood') || '');
+      setWizClientCity(params.get('city') || '');
+      setWizClientState(params.get('state') || '');
+      setWizClientPais(params.get('pais') || 'Brasil');
+      setWizClientRepresentative(params.get('representative') || params.get('name') || '');
+      
+      const clientNameVal = params.get('name') || '';
+      setWizProjectName(clientNameVal ? `Orçamento - ${clientNameVal}` : '');
+      
+      setIsWizardOpen(true);
+      setWizardStep(1);
+
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, []);
+
   const saveProposalsToStorage = (newProps) => {
     setProposals(newProps);
     localStorage.setItem('dgflow_proposals', JSON.stringify(newProps));
@@ -430,6 +512,9 @@ export default function Proposals() {
 
     const newProposal = {
       id: `prop_${userId}_${Date.now()}`,
+      contact_id: wizContactId || null,
+      clientPhone: wizClientPhone || null,
+      clientEmail: wizClientEmail || null,
       projectName: wizProjectName,
       clientName: wizClientName,
       amount: finalValue,
@@ -463,6 +548,7 @@ export default function Proposals() {
     window.open('/proposal/' + newProposal.id, '_blank');
 
     // Reset Wizard parameters
+    setWizContactId('');
     setWizProjectName('');
     setWizClientName('');
     setWizClientAddress('');
@@ -1818,6 +1904,115 @@ export default function Proposals() {
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider select-none">Identificação da Proposta</h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    {/* Vincular a um Cliente ou Lead existente */}
+                    <div className="space-y-1.5 col-span-2 relative">
+                      <label className="text-xs text-zinc-400 font-semibold flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-zinc-500" />
+                        <span>Vincular a um Cliente ou Lead existente</span>
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsContactDropdownOpen(!isContactDropdownOpen)}
+                          className="w-full flex items-center justify-between rounded-lg border border-zinc-800 bg-[#101014] text-zinc-400 px-4 h-10 text-xs font-semibold cursor-pointer focus:border-[#e13a40] outline-none"
+                        >
+                          <span className={wizContactId ? "text-white font-bold" : "text-zinc-500"}>
+                            {wizContactId 
+                              ? contacts.find(c => String(c.id) === String(wizContactId))?.name || wizClientName
+                              : "Selecione um cliente ou lead..."}
+                          </span>
+                          <ChevronDown className="h-4 w-4 text-zinc-550" />
+                        </button>
+
+                        {isContactDropdownOpen && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsContactDropdownOpen(false);
+                              }}
+                            />
+                            <div className="absolute top-11 left-0 right-0 z-50 rounded-lg border border-zinc-800 bg-[#0c0c0e] p-2 shadow-2xl flex flex-col max-h-[220px] overflow-hidden">
+                              {/* Search input inside dropdown */}
+                              <div className="relative mb-2 shrink-0">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-550" />
+                                <input
+                                  type="text"
+                                  value={contactSearchTerm}
+                                  onChange={(e) => setContactSearchTerm(e.target.value)}
+                                  placeholder="Buscar por nome, email, telefone..."
+                                  className="pl-8 bg-zinc-950/60 border border-zinc-800 text-white placeholder-zinc-500 text-xs focus:border-[#e13a40] h-8 w-full rounded outline-none font-semibold"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+
+                              {/* Contacts List */}
+                              <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+                                {contacts.filter(c => 
+                                  (c.name || '').toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+                                  (c.email || '').toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+                                  (c.phone || '').toLowerCase().includes(contactSearchTerm.toLowerCase())
+                                ).length === 0 ? (
+                                  <div className="text-center py-4 text-zinc-500 text-xs">Nenhum cliente/lead encontrado</div>
+                                ) : (
+                                  contacts
+                                    .filter(c => 
+                                      (c.name || '').toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+                                      (c.email || '').toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+                                      (c.phone || '').toLowerCase().includes(contactSearchTerm.toLowerCase())
+                                    )
+                                    .map(c => {
+                                      const isLead = c.current_stage !== 'fechado';
+                                      return (
+                                        <button
+                                          key={c.id}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setWizContactId(c.id);
+                                            setWizClientName(c.name || '');
+                                            setWizClientEmail(c.email || '');
+                                            setWizClientPhone(c.phone || '');
+                                            setWizClientCpfCnpj(c.doc || '');
+                                            setWizClientAddress(c.endereço || '');
+                                            setWizClientNum(c.numero || '');
+                                            setWizClientBairro(c.bairro || '');
+                                            setWizClientCity(c.cidade || '');
+                                            setWizClientState(c.estado || '');
+                                            setWizClientPais(c.pais || 'Brasil');
+                                            setWizClientRepresentative(c.representante || c.name || '');
+                                            if (!wizProjectName) {
+                                              setWizProjectName(`Orçamento - ${c.name}`);
+                                            }
+                                            setIsContactDropdownOpen(false);
+                                            setContactSearchTerm('');
+                                          }}
+                                          className="w-full text-left rounded p-2 hover:bg-zinc-800 transition-all text-xs font-semibold text-zinc-350 flex items-center justify-between cursor-pointer"
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="text-white font-bold">{c.name}</span>
+                                            <span className="text-[10px] text-zinc-550">{c.phone || c.email || 'Sem contato'}</span>
+                                          </div>
+                                          <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase ${
+                                            isLead 
+                                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+                                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                          }`}>
+                                            {isLead ? 'Lead' : 'Cliente'}
+                                          </span>
+                                        </button>
+                                      );
+                                    })
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5 col-span-2">
                       <label className="text-xs text-zinc-400 font-semibold">País do Cliente</label>
                       <select

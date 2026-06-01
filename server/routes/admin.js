@@ -1,8 +1,16 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { authenticateToken } from '../middleware/auth.js';
-import { getAllUsers, updateUserAdminDetails, getUserById } from '../db/master.js';
+import { getAllUsers, updateUserAdminDetails, getUserById, getUserByEmail, createUser } from '../db/master.js';
 import { getSocket } from '../whatsapp/client.js';
 import { getAutomationLogs, runAutomationSweep } from '../db/scheduler.js';
+import { sendWelcomeEmail } from '../lib/mailer.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 
 const router = express.Router();
 
@@ -189,6 +197,201 @@ router.post('/trigger-sweep', authenticateToken, requireAdmin, async (req, res) 
   } catch (err) {
     console.error('[AdminRoutes] Error forcing automation sweep:', err.message);
     res.status(500).json({ error: `Erro ao executar varredura: ${err.message}` });
+  }
+});
+
+// POST /api/admin/provision - Manually provision a user and trigger welcome email + WhatsApp
+router.post('/provision', authenticateToken, requireAdmin, async (req, res) => {
+  const { name, email, phone, plan } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Nome e E-mail são obrigatórios.' });
+  }
+
+  const cleanEmail = email.toLowerCase().trim();
+
+  try {
+    // 1. Check if user already exists
+    const existingUser = getUserByEmail(cleanEmail);
+    if (existingUser) {
+      return res.status(400).json({ error: 'Já existe um usuário cadastrado com este e-mail.' });
+    }
+
+    // 2. Generate bcrypt hash using email as password
+    const salt = bcrypt.genSaltSync(10);
+    const passwordHash = bcrypt.hashSync(cleanEmail, salt);
+
+    // 3. Create user record
+    const newUser = createUser(cleanEmail, passwordHash, name);
+
+    // 4. Update additional administrative settings (plan, trial expiry, phone)
+    let trialEndsAt = null;
+    let amountPaid = 0.0;
+    
+    if (plan === 'trial' || !plan) {
+      // 7 days trial
+      const trialDate = new Date();
+      trialDate.setDate(trialDate.getDate() + 7);
+      trialEndsAt = trialDate.toISOString().replace('T', ' ').substring(0, 19);
+    } else {
+      // Paid plan: Básico, Pro or NEXT
+      const nextMonth = new Date();
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      trialEndsAt = nextMonth.toISOString().replace('T', ' ').substring(0, 19);
+      amountPaid = plan === 'basico' ? 49.0 : plan === 'pro' ? 99.0 : 199.0;
+    }
+
+    const updatedUser = updateUserAdminDetails(newUser.id, {
+      plan: plan || 'trial',
+      trial_ends_at: trialEndsAt,
+      phone: phone || '',
+      amount_paid: amountPaid,
+      billing_cycle: 'monthly',
+      role: 'user'
+    });
+
+    // 5. Send automated Welcome Email
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await sendWelcomeEmail(cleanEmail, name, cleanEmail);
+      emailSent = true;
+    } catch (mailErr) {
+      console.error('[AdminRoutes] Error sending welcome email:', mailErr.message);
+      emailError = mailErr.message;
+    }
+
+    // 6. Send automated Welcome WhatsApp message via admin socket
+    let whatsappSent = false;
+    let whatsappStatus = 'skipped';
+    let whatsappError = null;
+
+    if (phone) {
+      let cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length > 0) {
+        if (!cleanPhone.startsWith('55') && cleanPhone.length <= 11) {
+          cleanPhone = '55' + cleanPhone;
+        }
+
+        const adminSocket = getSocket(req.user.id);
+        if (adminSocket) {
+          try {
+            const jid = `${cleanPhone}@s.whatsapp.net`;
+            const templateMessage = `Olá, *${name}*! 🚀✨\n\nSeja muito bem-vindo(a) ao *NEXDASH CRM*!\n\nA sua conta corporativa premium foi criada com sucesso pelo nosso painel de administração e já está totalmente liberada para uso.\n\n🔑 *DADOS DE ACESSO:*\n----------------------------------------\n🔹 *Login:* ${cleanEmail}\n🔹 *Senha:* ${cleanEmail}\n----------------------------------------\n\n🔗 *Acesse o painel aqui:* http://localhost:5173/login\n\n💡 _Dica: Para sua comodidade, sua senha inicial foi definida como o próprio e-mail corporativo. Você poderá alterá-la nas Configurações da sua conta a qualquer momento._\n\nEstamos ansiosos para acelerar as suas vendas e automações com o poder da nossa Inteligência Artificial! 🤖💼\n\n_Atenciosamente,\nEquipe NEXDASH_`;
+
+            const welcomeBannerPath = path.join(__dirname, '..', '..', 'uploads', 'welcome_banner.png');
+            if (fs.existsSync(welcomeBannerPath)) {
+              await adminSocket.sendMessage(jid, {
+                image: { url: welcomeBannerPath },
+                caption: templateMessage
+              });
+            } else {
+              await adminSocket.sendMessage(jid, { text: templateMessage });
+            }
+            whatsappSent = true;
+            whatsappStatus = 'sent';
+          } catch (waErr) {
+            console.error('[AdminRoutes] WhatsApp dispatch error:', waErr.message);
+            whatsappStatus = 'failed';
+            whatsappError = waErr.message;
+          }
+        } else {
+          whatsappStatus = 'no_admin_connection';
+        }
+      } else {
+        whatsappStatus = 'invalid_phone';
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Usuário provisionado com sucesso!',
+      user: updatedUser,
+      notifications: {
+        email: { sent: emailSent, error: emailError },
+        whatsapp: { sent: whatsappSent, status: whatsappStatus, error: whatsappError }
+      }
+    });
+
+  } catch (err) {
+    console.error('[AdminRoutes] Error during provisioning:', err);
+    res.status(500).json({ error: `Erro no provisionamento do cliente: ${err.message}` });
+  }
+});
+
+// POST /api/admin/resend-welcome - Manually resend welcome email & WhatsApp credentials
+router.post('/resend-welcome', authenticateToken, requireAdmin, async (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'Parâmetro userId é obrigatório.' });
+  }
+
+  try {
+    const user = getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await sendWelcomeEmail(user.email, user.name, user.email);
+      emailSent = true;
+    } catch (mailErr) {
+      emailError = mailErr.message;
+    }
+
+    let whatsappSent = false;
+    let whatsappStatus = 'skipped';
+    let whatsappError = null;
+
+    if (user.phone) {
+      let cleanPhone = user.phone.replace(/\D/g, '');
+      if (cleanPhone.length > 0) {
+        if (!cleanPhone.startsWith('55') && cleanPhone.length <= 11) {
+          cleanPhone = '55' + cleanPhone;
+        }
+
+        const adminSocket = getSocket(req.user.id);
+        if (adminSocket) {
+          try {
+            const jid = `${cleanPhone}@s.whatsapp.net`;
+            const templateMessage = `Olá, *${user.name}*! 🚀✨\n\nEstamos reenviando seus dados de acesso ao *NEXDASH CRM*!\n\n🔑 *DADOS DE ACESSO:*\n----------------------------------------\n🔹 *Login:* ${user.email}\n🔹 *Senha:* ${user.email}\n----------------------------------------\n\n🔗 *Acesse o painel aqui:* http://localhost:5173/login\n\n💡 _Dica: Para sua comodidade, sua senha inicial é o seu próprio e-mail corporativo. Você poderá alterá-la nas Configurações da sua conta a qualquer momento._\n\nSeja bem-vindo a bordo! 🤖💼\n\n_Atenciosamente,\nEquipe NEXDASH_`;
+
+            const welcomeBannerPath = path.join(__dirname, '..', '..', 'uploads', 'welcome_banner.png');
+            if (fs.existsSync(welcomeBannerPath)) {
+              await adminSocket.sendMessage(jid, {
+                image: { url: welcomeBannerPath },
+                caption: templateMessage
+              });
+            } else {
+              await adminSocket.sendMessage(jid, { text: templateMessage });
+            }
+            whatsappSent = true;
+            whatsappStatus = 'sent';
+          } catch (waErr) {
+            whatsappStatus = 'failed';
+            whatsappError = waErr.message;
+          }
+        } else {
+          whatsappStatus = 'no_admin_connection';
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Credenciais de boas-vindas reenviadas com sucesso!',
+      notifications: {
+        email: { sent: emailSent, error: emailError },
+        whatsapp: { sent: whatsappSent, status: whatsappStatus, error: whatsappError }
+      }
+    });
+
+  } catch (err) {
+    console.error('[AdminRoutes] Error resending welcome:', err);
+    res.status(500).json({ error: `Erro ao reenviar boas-vindas: ${err.message}` });
   }
 });
 

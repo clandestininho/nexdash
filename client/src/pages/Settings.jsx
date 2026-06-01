@@ -81,6 +81,34 @@ export default function Settings() {
     }
   }, []);
 
+  // URL payment status listener
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+    if (status === 'success') {
+      const syncUserProfile = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await apiFetch('/api/auth/profile', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('user', JSON.stringify(data.user));
+            window.dispatchEvent(new Event('user_plan_updated'));
+            alert('💳 Pagamento confirmado! Sua assinatura foi ativada com sucesso. Obrigado por confiar no NEXDASH!');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      syncUserProfile();
+      
+      // Clean query parameters from URL to avoid repeating the alert on refresh
+      window.history.replaceState({}, document.title, window.location.pathname + '?tab=assinatura');
+    }
+  }, []);
+
   // APRENDIZAGEM States
   const [learningModules, setLearningModules] = useState([
     {
