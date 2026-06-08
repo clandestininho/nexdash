@@ -54,6 +54,82 @@ export default function ContactDetailPanel({ contact, history = [], visible, onC
 
   const messagesEndRef = useRef(null);
 
+  const [catalogServices, setCatalogServices] = useState([]);
+  const [projectInterest, setProjectInterest] = useState('');
+
+  useEffect(() => {
+    if (contact) {
+      setProjectInterest(contact.project_interest || '');
+    }
+  }, [contact]);
+
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.services_list) {
+            setCatalogServices(JSON.parse(data.services_list));
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao carregar serviços no ContactDetailPanel:", e);
+      }
+    };
+    loadServices();
+  }, []);
+
+  const handleSaveInterest = (newInterest) => {
+    setProjectInterest(newInterest);
+    if (!contact) return;
+    contact.project_interest = newInterest;
+
+    const stored = localStorage.getItem('dgflow_local_contacts');
+    const locals = stored ? JSON.parse(stored) : [];
+    const idx = locals.findIndex(c => String(c.id) === String(contact.id));
+    if (idx !== -1) {
+      locals[idx].project_interest = newInterest;
+      locals[idx].last_activity = new Date().toISOString();
+    } else {
+      locals.unshift({
+        ...contact,
+        project_interest: newInterest,
+        last_activity: new Date().toISOString()
+      });
+    }
+    localStorage.setItem('dgflow_local_contacts', JSON.stringify(locals));
+    window.dispatchEvent(new CustomEvent('dgflow_contact_updated', { detail: contact }));
+  };
+
+  const handleCopyRequestContractLink = () => {
+    if (!contact) return;
+    if (!projectInterest) {
+      alert("Erro: Você precisa selecionar um serviço de interesse específico do catálogo para o contato antes de solicitar os dados do contrato.");
+      return;
+    }
+    const matchedService = catalogServices.find(s => s.title === projectInterest);
+    if (!matchedService) {
+      alert(`Erro: O serviço "${projectInterest}" não foi encontrado no seu Catálogo de Serviços.`);
+      return;
+    }
+    if (!matchedService.contractTemplate) {
+      alert(`Erro: O serviço "${projectInterest}" não possui um modelo de contrato customizado configurado. Configure-o primeiro no Catálogo de Serviços.`);
+      return;
+    }
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    const userId = storedUser?.id || '1';
+    const requestLink = `${window.location.origin}/request-contract/${userId}/${contact.id}`;
+    navigator.clipboard.writeText(requestLink)
+      .then(() => {
+        alert("Link de solicitação de dados copiado para a Área de Transferência!");
+      })
+      .catch((e) => {
+        console.error("Erro ao copiar link:", e);
+        alert(`Link para envio: ${requestLink}`);
+      });
+  };
+
   // Sync local state when contact changes
   useEffect(() => {
     if (contact) {
@@ -304,7 +380,7 @@ export default function ContactDetailPanel({ contact, history = [], visible, onC
                       Informações de Contato
                     </h3>
                     <div className="grid grid-cols-2 gap-4 bg-zinc-950/40 p-4 border border-zinc-900 rounded-xl">
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 col-span-2">
                         <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">E-mail</span>
                         <p className="text-xs text-zinc-200 font-mono truncate">{contact.email || 'Não cadastrado'}</p>
                       </div>
@@ -316,9 +392,20 @@ export default function ContactDetailPanel({ contact, history = [], visible, onC
                         <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Documento</span>
                         <p className="text-xs text-zinc-200 font-mono">{contact.doc || 'Não informado'}</p>
                       </div>
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Área de Interesse</span>
-                        <p className="text-xs text-zinc-200 font-semibold">{contact.project_interest || 'Geral'}</p>
+                      <div className="space-y-0.5 col-span-2">
+                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider block">Área de Interesse (Catálogo)</span>
+                        <select
+                          value={projectInterest}
+                          onChange={(e) => handleSaveInterest(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 text-xs h-9 rounded-lg px-2.5 outline-none focus:ring-1 focus:ring-[#e13a40]/30 cursor-pointer mt-1 font-semibold"
+                        >
+                          <option value="">Selecione um serviço do catálogo...</option>
+                          {catalogServices.map(srv => (
+                            <option key={srv.id} value={srv.title}>
+                              {srv.title}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -465,6 +552,26 @@ export default function ContactDetailPanel({ contact, history = [], visible, onC
                           ✗ Erro ao atualizar configurações comerciais
                         </p>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Solicitação de Dados do Contrato */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs uppercase tracking-widest font-extrabold text-[#e13a40] flex items-center gap-1">
+                      <FileText className="h-3.5 w-3.5" />
+                      Dados do Contrato
+                    </h3>
+                    <div className="bg-zinc-950/40 p-4 border border-zinc-900 rounded-xl space-y-3.5">
+                      <p className="text-[11px] text-zinc-400 font-body leading-relaxed">
+                        Envie um link seguro para o lead preencher suas informações de faturamento e gerar o contrato compilado automaticamente.
+                      </p>
+                      <Button 
+                        onClick={handleCopyRequestContractLink}
+                        className="w-full h-9 text-xs font-bold gap-1.5 bg-[#e13a40] hover:bg-[#c52f34] text-white shadow-glow shadow-[#e13a40]/10"
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span>Solicitar Dados do Contrato</span>
+                      </Button>
                     </div>
                   </div>
 

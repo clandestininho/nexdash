@@ -296,11 +296,17 @@ export default function ProposalView() {
     price: Number(s?.price || 0)
   }));
 
+  const profileMoeda = branding?.currency || 'BRL';
+  const currencySymbol = profileMoeda === 'EUR' ? '€' : profileMoeda === 'USD' ? '$' : 'R$';
+
   const formatMoney = (val) => {
     try {
       const num = Number(val);
       if (isNaN(num)) return '0,00';
-      return num.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      return num.toLocaleString(
+        profileMoeda === 'EUR' ? 'de-DE' : profileMoeda === 'USD' ? 'en-US' : 'pt-BR',
+        { minimumFractionDigits: 2 }
+      );
     } catch (e) {
       return '0,00';
     }
@@ -427,7 +433,7 @@ export default function ProposalView() {
                       </div>
 
                       <span className="text-xs font-bold font-mono whitespace-nowrap shrink-0" style={{ color: primaryColor }}>
-                        R$ {formatMoney(service.price)}
+                        {currencySymbol} {formatMoney(service.price)}
                       </span>
                     </div>
                   ))}
@@ -438,18 +444,18 @@ export default function ProposalView() {
               <div className="p-3.5 rounded-lg border border-zinc-900 bg-zinc-950/80 space-y-2 font-mono select-text">
                 <div className="flex items-center justify-between text-[10px] text-zinc-500">
                   <span>Subtotal:</span>
-                  <span>R$ {formatMoney(subtotal)}</span>
+                  <span>{currencySymbol} {formatMoney(subtotal)}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-[10px] text-emerald-500 border-b border-zinc-900 pb-2">
                   <span>Desconto:</span>
-                  <span>- R$ {formatMoney(discount)}</span>
+                  <span>- {currencySymbol} {formatMoney(discount)}</span>
                 </div>
 
                 <div className="flex items-center justify-between pt-1.5 font-body">
                   <span className="text-[11px] font-bold text-white uppercase tracking-wider">Total:</span>
                   <span className="text-lg font-black font-mono leading-none" style={{ color: primaryColor }}>
-                    R$ {formatMoney(amount)}
+                    {currencySymbol} {formatMoney(amount)}
                   </span>
                 </div>
               </div>
@@ -643,7 +649,7 @@ export default function ProposalView() {
                       <div className="space-y-1">
                         <h4 className="text-xs font-black uppercase text-emerald-400 tracking-wider">✓ Pagamento Confirmado!</h4>
                         <p className="text-[10px] text-zinc-400 font-body leading-relaxed max-w-sm mx-auto">
-                          Seu pagamento de <strong>R$ {formatMoney(amount)}</strong> foi compensado com sucesso via <strong>{proposal.payment_method || 'PIX'}</strong>.
+                          Seu pagamento de <strong>{currencySymbol} {formatMoney(amount)}</strong> foi compensado com sucesso via <strong>{proposal.payment_method || 'PIX'}</strong>.
                         </p>
                       </div>
                       <p className="text-[9px] text-zinc-550 font-mono select-none">
@@ -824,7 +830,7 @@ export default function ProposalView() {
                               ) : (
                                 <>
                                   <CreditCard className="h-3.5 w-3.5 text-blue-400" />
-                                  <span>Pagar R$ {formatMoney(amount)}</span>
+                                  <span>Pagar {currencySymbol} {formatMoney(amount)}</span>
                                 </>
                               )}
                             </button>

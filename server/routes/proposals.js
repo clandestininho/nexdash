@@ -127,7 +127,8 @@ router.get('/public/proposals/:id', (req, res) => {
         showProjects: settings.proposal_show_projects !== 'false',
         maxProjects: parseInt(settings.proposal_max_projects || '4', 10),
         proposalLogo: settings.proposal_logo || '',
-        proposalFavicon: settings.proposal_favicon || ''
+        proposalFavicon: settings.proposal_favicon || '',
+        currency: settings.profile_moeda || 'BRL'
       },
       gateways: {
         asaas: !!settings.asaas_api_key,

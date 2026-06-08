@@ -140,6 +140,8 @@ const INITIAL_PROPOSALS = [];
 
 export default function Proposals() {
   const [proposals, setProposals] = useState([]);
+  const [profileMoeda, setProfileMoeda] = useState('BRL');
+  const [showAdditionalWizFields, setShowAdditionalWizFields] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState(DEFAULT_CONTRACT_TEMPLATE);
   
   // Navigation & Dialog Toggles
@@ -342,6 +344,21 @@ export default function Proposals() {
 
   // Load contracts and templates on mount
   useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile_moeda) {
+            setProfileMoeda(data.profile_moeda);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao buscar settings no Proposals:", err);
+      }
+    };
+    loadSettings();
+
     const loadProps = async () => {
       try {
         const res = await apiFetch('/api/proposals');
@@ -471,13 +488,27 @@ export default function Proposals() {
   const discountValue = parseFloat(wizDiscount.replace(',', '.')) || 0;
   const finalValue = Math.max(0, subtotalValue - discountValue);
 
+  const currencySymbol = profileMoeda === 'EUR' ? '€' : profileMoeda === 'USD' ? '$' : 'R$';
+  const formatMoney = (val) => {
+    try {
+      const num = Number(val);
+      if (isNaN(num)) return '0,00';
+      return num.toLocaleString(
+        profileMoeda === 'EUR' ? 'de-DE' : profileMoeda === 'USD' ? 'en-US' : 'pt-BR',
+        { minimumFractionDigits: 2 }
+      );
+    } catch (e) {
+      return '0,05';
+    }
+  };
+
   // Compile contract template by replacing shortcodes
   const handleCompileAndSaveContract = (e) => {
     if (e) e.preventDefault();
 
     // Generate services list string representation for contract
     const servicesListString = selectedServices.map((sv, idx) => 
-      `${idx + 1}. ${sv.name} (${sv.quantity}x) - R$ ${(sv.unitPrice * sv.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${sv.description ? `\n   Descrição: ${sv.description}` : ''}`
+      `${idx + 1}. ${sv.name} (${sv.quantity}x) - ${currencySymbol} ${formatMoney(sv.unitPrice * sv.quantity)}${sv.description ? `\n   Descrição: ${sv.description}` : ''}`
     ).join('\n');
 
     const durationString = wizDeliveryTerm || '30 dias';
@@ -507,9 +538,9 @@ export default function Proposals() {
       '{{Serviços Inclusos}}': servicesListString || '[Nenhum serviço selecionado]',
       '{{Prazo do Contrato}}': durationString,
 
-      '{{Valor Total}}': `R$ ${subtotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      '{{Valor do Desconto}}': `R$ ${discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      '{{Valor Final}}': `R$ ${finalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      '{{Valor Total}}': `${currencySymbol} ${formatMoney(subtotalValue)}`,
+      '{{Valor do Desconto}}': `${currencySymbol} ${formatMoney(discountValue)}`,
+      '{{Valor Final}}': `${currencySymbol} ${formatMoney(finalValue)}`,
       '{{Condições de Pagamento}}': wizPaymentConditions || 'A definir',
       '{{Forma de Pagamento}}': wizPaymentMethod || 'PIX',
       '{{Número de Parcelas}}': '1',
@@ -710,7 +741,7 @@ export default function Proposals() {
         <div className="bg-[#121214] border border-zinc-800/80 rounded-xl p-5 flex flex-col justify-between min-h-[110px]">
           <span className="text-[11px] text-zinc-400 font-semibold">Valor Total Aprovado</span>
           <p className="text-3xl font-bold text-[#10b981] mt-2">
-            R$ {totalApprovedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            {currencySymbol} {formatMoney(totalApprovedAmount)}
           </p>
         </div>
       </div>
@@ -807,7 +838,7 @@ export default function Proposals() {
                     <td className="py-4 px-6 font-bold text-white leading-tight">{prop.projectName}</td>
                     <td className="py-4 px-6 font-semibold text-zinc-400">{prop.clientName}</td>
                     <td className="py-4 px-6 text-right font-bold text-white font-mono text-[11.5px]">
-                      R$ {prop.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      {currencySymbol} {formatMoney(prop.amount)}
                     </td>
                     <td className="py-4 px-6">
                       <span className={`px-2 py-0.5 rounded-full border text-[9px] font-extrabold uppercase ${
@@ -815,9 +846,11 @@ export default function Proposals() {
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                           : prop.status === 'sent' 
                           ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
+                          : prop.status === 'pending_review'
+                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                           : 'bg-zinc-800/40 text-zinc-400 border-zinc-700/20'
                       }`}>
-                        {prop.status === 'approved' ? 'Aprovado' : prop.status === 'sent' ? 'Enviado' : 'Rascunho'}
+                        {prop.status === 'approved' ? 'Aprovado' : prop.status === 'sent' ? 'Enviado' : prop.status === 'pending_review' ? 'Em Revisão' : 'Rascunho'}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center relative">
@@ -910,7 +943,7 @@ export default function Proposals() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setActiveActionMenuId(null);
-                                  alert("Cobrança de R$ " + prop.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + " gerada com sucesso!");
+                                  alert("Cobrança de " + currencySymbol + " " + formatMoney(prop.amount) + " gerada com sucesso!");
                                 }}
                                 className="w-full px-3 py-1.5 rounded-lg text-left text-[11px] font-bold hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2 text-zinc-300 cursor-pointer"
                               >
@@ -2120,62 +2153,75 @@ export default function Proposals() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-zinc-800/30">
-                    <div className="md:col-span-2 space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">
-                        {wizClientPais === 'Brasil' ? 'Endereço do Cliente' : wizClientPais === 'Portugal' ? 'Morada / Rua' : 'Endereço'}
-                      </label>
-                      <Input
-                        value={wizClientAddress}
-                        onChange={(e) => setWizClientAddress(e.target.value)}
-                        placeholder={wizClientPais === 'Brasil' ? 'Av. Paulista...' : wizClientPais === 'Portugal' ? 'Rua das Flores, nº 10' : 'Endereço'}
-                        className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">Número</label>
-                      <Input
-                        value={wizClientNum}
-                        onChange={(e) => setWizClientNum(e.target.value)}
-                        placeholder="100"
-                        className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
-                      />
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdditionalWizFields(!showAdditionalWizFields)}
+                    className="w-full flex items-center justify-between py-2.5 text-xs font-bold text-zinc-400 hover:text-white border-t border-zinc-800/40 pt-3 select-none"
+                  >
+                    <span>Dados de Endereço (Opcional)</span>
+                    <ChevronDown className={`h-4 w-4 transform transition-transform ${showAdditionalWizFields ? 'rotate-180' : ''}`} />
+                  </button>
 
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">
-                        {wizClientPais === 'Brasil' ? 'Bairro' : wizClientPais === 'Portugal' ? 'Localidade / Freguesia' : 'Bairro'}
-                      </label>
-                      <Input
-                        value={wizClientBairro}
-                        onChange={(e) => setWizClientBairro(e.target.value)}
-                        placeholder={wizClientPais === 'Brasil' ? 'Bela Vista' : wizClientPais === 'Portugal' ? 'Chiado' : 'Bairro'}
-                        className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">
-                        {wizClientPais === 'Brasil' ? 'Cidade' : wizClientPais === 'Portugal' ? 'Concelho' : 'Cidade'}
-                      </label>
-                      <Input
-                        value={wizClientCity}
-                        onChange={(e) => setWizClientCity(e.target.value)}
-                        placeholder="Cidade"
-                        className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-zinc-400 font-semibold">Estado</label>
-                      <Input
-                        value={wizClientState}
-                        onChange={(e) => setWizClientState(e.target.value)}
-                        placeholder="SP"
-                        className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
-                      />
-                    </div>
-                  </div>
+                  {showAdditionalWizFields && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-zinc-800/30 animate-fade-in">
+                        <div className="md:col-span-2 space-y-1.5">
+                          <label className="text-xs text-zinc-400 font-semibold">
+                            {wizClientPais === 'Brasil' ? 'Endereço do Cliente' : wizClientPais === 'Portugal' ? 'Morada / Rua' : 'Endereço'}
+                          </label>
+                          <Input
+                            value={wizClientAddress}
+                            onChange={(e) => setWizClientAddress(e.target.value)}
+                            placeholder={wizClientPais === 'Brasil' ? 'Av. Paulista...' : wizClientPais === 'Portugal' ? 'Rua das Flores, nº 10' : 'Endereço'}
+                            className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-zinc-400 font-semibold">Número</label>
+                          <Input
+                            value={wizClientNum}
+                            onChange={(e) => setWizClientNum(e.target.value)}
+                            placeholder="100"
+                            className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 animate-fade-in">
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-zinc-400 font-semibold">
+                            {wizClientPais === 'Brasil' ? 'Bairro' : wizClientPais === 'Portugal' ? 'Localidade / Freguesia' : 'Bairro'}
+                          </label>
+                          <Input
+                            value={wizClientBairro}
+                            onChange={(e) => setWizClientBairro(e.target.value)}
+                            placeholder={wizClientPais === 'Brasil' ? 'Bela Vista' : wizClientPais === 'Portugal' ? 'Chiado' : 'Bairro'}
+                            className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-zinc-400 font-semibold">
+                            {wizClientPais === 'Brasil' ? 'Cidade' : wizClientPais === 'Portugal' ? 'Concelho' : 'Cidade'}
+                          </label>
+                          <Input
+                            value={wizClientCity}
+                            onChange={(e) => setWizClientCity(e.target.value)}
+                            placeholder="Cidade"
+                            className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-zinc-400 font-semibold">Estado</label>
+                          <Input
+                            value={wizClientState}
+                            onChange={(e) => setWizClientState(e.target.value)}
+                            placeholder="SP"
+                            className="bg-[#101014] border-zinc-800 text-white text-xs h-10"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -2244,7 +2290,7 @@ export default function Proposals() {
                                   className="w-full text-left rounded p-2 hover:bg-[#e13a40] hover:text-white transition-all text-xs font-semibold text-zinc-300 flex items-center justify-between"
                                 >
                                   <span>{sv.name}</span>
-                                  <span className="font-mono text-[#e13a40] font-bold">R$ {sv.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                  <span className="font-mono text-[#e13a40] font-bold">{currencySymbol} {formatMoney(sv.price)}</span>
                                 </button>
                               ))}
                           </div>
@@ -2345,7 +2391,7 @@ export default function Proposals() {
                             <div className="flex items-center gap-2 select-none">
                               <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Valor unit.:</span>
                               <div className="flex items-center bg-[#101014] border border-zinc-800 rounded-lg p-1.5 h-8 w-28">
-                                <span className="text-[10px] text-zinc-500 font-mono pl-1">R$</span>
+                                <span className="text-[10px] text-zinc-500 font-mono pl-1">{currencySymbol}</span>
                                 <input
                                   type="number"
                                   value={sv.unitPrice || ''}
@@ -2362,7 +2408,7 @@ export default function Proposals() {
 
                             {/* Calculated service total in brand red */}
                             <div className="font-bold text-xs font-mono text-[#e13a40]">
-                              = R$ {(sv.quantity * sv.unitPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              = {currencySymbol} {formatMoney(sv.quantity * sv.unitPrice)}
                             </div>
 
                           </div>
@@ -2375,7 +2421,7 @@ export default function Proposals() {
                         
                         {/* Discount field input */}
                         <div className="space-y-1.5 select-none">
-                          <span className="text-xs font-semibold text-zinc-300 block">Desconto (R$)</span>
+                          <span className="text-xs font-semibold text-zinc-300 block">Desconto ({currencySymbol})</span>
                           <Input
                             value={wizDiscount}
                             onChange={(e) => setWizDiscount(e.target.value)}
@@ -2388,13 +2434,13 @@ export default function Proposals() {
                         <div className="space-y-2 pt-2 border-t border-zinc-800/30 select-none font-mono">
                           <div className="flex justify-between items-center text-xs text-zinc-500">
                             <span>Subtotal:</span>
-                            <span>R$ {subtotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            <span>{currencySymbol} {formatMoney(subtotalValue)}</span>
                           </div>
                           
                           <div className="flex justify-between items-center pt-2 font-body border-t border-zinc-900/60">
                             <span className="text-xs font-bold text-white uppercase tracking-wider">Total:</span>
                             <span className="text-base font-black font-mono text-[#e13a40] leading-none">
-                              R$ {finalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              {currencySymbol} {formatMoney(finalValue)}
                             </span>
                           </div>
                         </div>
@@ -2621,7 +2667,7 @@ export default function Proposals() {
                       {selectedServices.map((sv, idx) => (
                         <div key={sv.id} className="flex justify-between items-center text-xs py-1 border-b border-zinc-900/60 last:border-0">
                           <span className="text-zinc-300 font-medium">{idx + 1}. {sv.name} (x{sv.quantity})</span>
-                          <span className="font-mono text-white font-semibold">R$ {(sv.unitPrice * sv.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="font-mono text-white font-semibold">{currencySymbol} {formatMoney(sv.unitPrice * sv.quantity)}</span>
                         </div>
                       ))}
                     </div>
@@ -2629,7 +2675,7 @@ export default function Proposals() {
                     {/* Total details summary */}
                     <div className="flex justify-between items-center pt-2.5 border-t border-zinc-900 select-none">
                       <span className="text-xs font-bold text-zinc-400">Valor Final com Desconto:</span>
-                      <span className="text-sm font-black font-mono text-[#e13a40]">R$ {finalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-black font-mono text-[#e13a40]">{currencySymbol} {formatMoney(finalValue)}</span>
                     </div>
                   </div>
 
@@ -2641,9 +2687,9 @@ export default function Proposals() {
                         .replace(/{{Nome do Prestador}}/g, 'Gleison')
                         .replace(/{{Nome do Cliente}}/g, wizClientName || '[Cliente]')
                         .replace(/{{Nome do Projeto}}/g, wizProjectName || '[Projeto]')
-                        .replace(/{{Valor Final}}/g, `R$ ${finalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
-                        .replace(/{{Valor Total}}/g, `R$ ${subtotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
-                        .replace(/{{Valor do Desconto}}/g, `R$ ${discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
+                        .replace(/{{Valor Final}}/g, `${currencySymbol} ${formatMoney(finalValue)}`)
+                        .replace(/{{Valor Total}}/g, `${currencySymbol} ${formatMoney(subtotalValue)}`)
+                        .replace(/{{Valor do Desconto}}/g, `${currencySymbol} ${formatMoney(discountValue)}`)
                         .replace(/{{Condições de Pagamento}}/g, wizPaymentConditions || '[Condição]')
                         .replace(/{{Forma de Pagamento}}/g, wizPaymentMethod || '[Forma]')
                         .replace(/{{Prazo do Contrato}}/g, wizDeliveryTerm || '[Prazo]')
@@ -2793,7 +2839,7 @@ export default function Proposals() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-zinc-400 font-semibold select-none">Valor Unitário (R$) *</label>
+                <label className="text-xs text-zinc-400 font-semibold select-none">Valor Unitário ({currencySymbol}) *</label>
                 <input
                   type="text"
                   value={customServicePrice}

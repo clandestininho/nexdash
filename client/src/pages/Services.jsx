@@ -30,6 +30,7 @@ export default function Services() {
   const [srvPrice, setSrvPrice] = useState('');
   const [srvTime, setSrvTime] = useState('');
   const [srvFeatures, setSrvFeatures] = useState('');
+  const [srvContractTemplate, setSrvContractTemplate] = useState('');
 
   useEffect(() => {
     const loadData = async () => {
@@ -59,6 +60,7 @@ export default function Services() {
                     'Mockups premium para redes sociais',
                     '03 rodadas de ajustes inclusas'
                   ],
+                  contractTemplate: '',
                   popular: true,
                 },
                 {
@@ -74,6 +76,7 @@ export default function Services() {
                     'Agendamento e monitoramento básico',
                     'Relatório mensal de insights'
                   ],
+                  contractTemplate: '',
                   popular: false,
                 }
               ];
@@ -115,6 +118,7 @@ export default function Services() {
       price: parseFloat(srvPrice) || 0,
       time: srvTime || 'A combinar',
       features: srvFeatures.split('\n').filter(f => f.trim() !== ''),
+      contractTemplate: srvContractTemplate,
       popular: false
     };
 
@@ -128,6 +132,7 @@ export default function Services() {
     setSrvPrice('');
     setSrvTime('');
     setSrvFeatures('');
+    setSrvContractTemplate('');
 
     try {
       await apiFetch('/api/settings', {
@@ -222,6 +227,12 @@ export default function Services() {
                   <span className="text-base font-black text-white font-mono">{currencySymbol} {srv.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   <span className="text-[10px] text-zinc-500 font-medium">/ {srv.time}</span>
                 </div>
+
+                {srv.contractTemplate && (
+                  <div className="text-[9px] text-[#e13a40] font-bold bg-[#e13a40]/5 border border-[#e13a40]/10 px-2 py-0.5 rounded w-fit select-none font-mono">
+                    ✓ Contrato Customizado
+                  </div>
+                )}
 
                 {/* Scope Bullet points */}
                 <div className="space-y-2.5 pt-2">
@@ -416,6 +427,17 @@ Design exclusivo no Figma
 Desenvolvimento Webflow
 Integração de APIs CRM"
                   className="w-full bg-zinc-950 border border-zinc-900 rounded-xl p-2.5 outline-none text-white focus:border-[#e13a40] text-xs font-body"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold">Modelo de Contrato Customizado (Opcional)</label>
+                <textarea 
+                  rows="4"
+                  value={srvContractTemplate}
+                  onChange={(e) => setSrvContractTemplate(e.target.value)}
+                  placeholder="Se deixado em branco, usará o modelo padrão de contratos..."
+                  className="w-full bg-zinc-950 border border-zinc-900 rounded-xl p-2.5 outline-none text-white focus:border-[#e13a40] text-[10px] font-mono"
                 />
               </div>
 

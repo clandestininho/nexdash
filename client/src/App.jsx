@@ -31,6 +31,7 @@ import AIPage from './pages/AIPage';
 import TasksPage from './pages/TasksPage';
 import Briefings from './pages/Briefings';
 import RegisterLeadPublic from './pages/RegisterLeadPublic';
+import RequestContractDataPublic from './pages/RequestContractDataPublic';
 import Onboarding from './pages/Onboarding';
 import Aprendizagem from './pages/Aprendizagem';
 import logo from './logo.png';
@@ -329,6 +330,9 @@ export default function App() {
 
         {/* Public lead self-registration view */}
         <Route path="/register-lead" element={<RegisterLeadPublic />} />
+
+        {/* Public contract request details form */}
+        <Route path="/request-contract/:userId/:contactId" element={<RequestContractDataPublic />} />
 
         {/* Isolated secure admin sub-site */}
         <Route

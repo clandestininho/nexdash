@@ -143,6 +143,14 @@ export default function Clientes() {
     fetchContacts();
   }, [fetchContacts]);
 
+  useEffect(() => {
+    const handleLocalUpdate = () => {
+      fetchContacts();
+    };
+    window.addEventListener('dgflow_contact_updated', handleLocalUpdate);
+    return () => window.removeEventListener('dgflow_contact_updated', handleLocalUpdate);
+  }, [fetchContacts]);
+
   // Load lead customizer fields configuration from API settings table
   useEffect(() => {
     const loadConfig = async () => {
@@ -195,7 +203,7 @@ export default function Clientes() {
       const idx = next.findIndex((c) => String(c.id) === String(updatedContact.id));
       if (idx !== -1) {
         const oldContact = next[idx];
-        if (oldContact.current_stage !== 'fechado' && updatedContact.current_stage === 'fechado') {
+        if (!['fechado', 'em-producao', 'entregue'].includes(oldContact.current_stage) && ['fechado', 'em-producao', 'entregue'].includes(updatedContact.current_stage)) {
           isTransitionToClosed = true;
         }
         next[idx] = { ...next[idx], ...updatedContact };
@@ -487,6 +495,17 @@ export default function Clientes() {
   };
 
   // Filtered contacts list mapping showArchived status
+  const catalogServices = useMemo(() => {
+    if (userSettings && userSettings.services_list) {
+      try {
+        return JSON.parse(userSettings.services_list);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }, [userSettings]);
+
   const filteredContacts = useMemo(() => {
     return contacts.filter((c) => {
       // Archive filter
@@ -502,7 +521,7 @@ export default function Clientes() {
       const matchesSearch = nameMatch || phoneMatch || lastMsgMatch || emailMatch;
       
       // Filter by Leads vs Clientes tab
-      const isCliente = c.current_stage === 'fechado';
+      const isCliente = ['fechado', 'em-producao', 'entregue'].includes(c.current_stage);
       if (contactsSubTab === 'leads' && isCliente) return false;
       if (contactsSubTab === 'clientes' && !isCliente) return false;
 
@@ -767,7 +786,7 @@ export default function Clientes() {
               ? 'bg-[#e13a40] text-white shadow-[0_0_8px_rgba(225,58,64,0.3)]'
               : 'bg-[#1a1a1a] text-zinc-400'
           }`}>
-            {contacts.filter(c => c.archived !== true && c.current_stage !== 'fechado').length}
+            {contacts.filter(c => c.archived !== true && !['fechado', 'em-producao', 'entregue'].includes(c.current_stage)).length}
           </span>
         </button>
         <button
@@ -784,7 +803,7 @@ export default function Clientes() {
               ? 'bg-[#e13a40] text-white shadow-[0_0_8px_rgba(225,58,64,0.3)]'
               : 'bg-[#1a1a1a] text-zinc-400'
           }`}>
-            {contacts.filter(c => c.archived !== true && c.current_stage === 'fechado').length}
+            {contacts.filter(c => c.archived !== true && ['fechado', 'em-producao', 'entregue'].includes(c.current_stage)).length}
           </span>
         </button>
       </div>
@@ -1174,12 +1193,18 @@ export default function Clientes() {
                 {/* Interest area */}
                 <div className="space-y-1">
                   <label className="text-xs text-zinc-350 font-bold uppercase">Projeto / Interesse Principal</label>
-                  <Input 
-                    placeholder="Desenvolvimento de Landing Page"
+                  <select
                     value={formInteresse}
                     onChange={(e) => setFormInteresse(e.target.value)}
-                    className="bg-[#1a1a1a] border-[#1f1f1f] text-white text-sm py-2"
-                  />
+                    className="w-full bg-[#1a1a1a] border-[#1f1f1f] text-white text-xs h-9 rounded-lg px-3 outline-none focus:border-[#e13a40] font-semibold cursor-pointer"
+                  >
+                    <option value="">Selecione um serviço...</option>
+                    {catalogServices.map(srv => (
+                      <option key={srv.id} value={srv.title}>
+                        {srv.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Tag markers */}

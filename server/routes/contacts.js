@@ -9,6 +9,7 @@ import {
   getMessages,
   clearChatHistory,
   getSetting,
+  saveProposal,
 } from '../db/database.js';
 import { VALID_STAGES } from '../ai/classifier.js';
 import { applyLabel } from '../whatsapp/labelManager.js';
@@ -355,6 +356,133 @@ export default function createContactsRouter(io) {
     } catch (error) {
       console.error(`[Route:Contacts] User ${userId}: Error clearing chat history:`, error.message);
       res.status(500).json({ error: 'Falha ao limpar histórico de conversas.' });
+    }
+  });
+
+  // GET /api/contacts/public-contract-request/:userId/:contactId
+  router.get('/public-contract-request/:userId/:contactId', async (req, res) => {
+    const { userId, contactId } = req.params;
+    try {
+      const contact = getContactById(userId, contactId);
+      if (!contact) {
+        return res.status(404).json({ error: 'Contato não encontrado.' });
+      }
+
+      const companyName = getSetting(userId, 'profile_empresa') || 'NEXDASH';
+      const companyLogo = getSetting(userId, 'profile_avatar') || getSetting(userId, 'onboarding_logo') || '';
+      const servicesListStr = getSetting(userId, 'services_list') || '[]';
+      const defaultContractTemplate = getSetting(userId, 'dgflow_active_template') || '';
+
+      res.json({
+        contact: {
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          project_interest: contact.project_interest || '',
+          doc: contact.doc || '',
+          cep: contact.cep || '',
+          endereço: contact.endereço || '',
+          numero: contact.numero || '',
+          complemento: contact.complemento || '',
+          bairro: contact.bairro || '',
+          cidade: contact.cidade || '',
+          estado: contact.estado || '',
+          pais: contact.pais || 'Brasil',
+          project_value: contact.project_value || 0
+        },
+        branding: {
+          companyName,
+          companyLogo,
+          servicesList: JSON.parse(servicesListStr),
+          defaultContractTemplate
+        }
+      });
+    } catch (error) {
+      console.error(`[PublicContractRequest] Error:`, error.message);
+      res.status(500).json({ error: 'Erro ao obter dados da solicitação de contrato.' });
+    }
+  });
+
+  // POST /api/contacts/public-contract-submit/:userId/:contactId
+  router.post('/public-contract-submit/:userId/:contactId', async (req, res) => {
+    const { userId, contactId } = req.params;
+    try {
+      const { 
+        name, email, phone, doc, cep, endereço, 
+        numero, complemento, bairro, cidade, estado, 
+        pais, compiledContractText, projectName, amount, services
+      } = req.body;
+
+      const contact = getContactById(userId, contactId);
+      if (!contact) {
+        return res.status(404).json({ error: 'Contato não encontrado.' });
+      }
+
+      const previousStage = contact.current_stage;
+      const targetStage = 'fechado';
+
+      upsertContact(userId, {
+        id: contactId,
+        name,
+        email,
+        phone,
+        current_stage: targetStage,
+        last_activity: new Date().toISOString()
+      });
+
+      if (previousStage !== targetStage) {
+        updateContactStage(userId, contactId, targetStage, 1.0, 'Preenchimento público de dados do contrato');
+        const logEntry = {
+          contact_id: contactId,
+          previous_stage: previousStage,
+          new_stage: targetStage,
+          confidence: 1.0,
+          reason: 'Preenchimento público de dados do contrato',
+          was_manual: 1,
+        };
+        addClassificationLog(userId, logEntry);
+      }
+
+      try {
+        await applyLabel(userId, contactId, targetStage, previousStage);
+      } catch (err) {
+        console.warn(`[Route:Contacts] Public submit user ${userId}: Failed to apply label:`, err.message);
+      }
+
+      const updatedContact = getContactById(userId, contactId);
+      if (io) {
+        io.to(`user_${userId}`).emit('contact:updated', updatedContact);
+      }
+
+      const newProposalId = `prop_${userId}_${Date.now()}`;
+      const newProposal = {
+        id: newProposalId,
+        contact_id: contactId,
+        clientName: name,
+        clientPhone: phone || null,
+        clientEmail: email || null,
+        projectName: projectName || `Contrato - ${name}`,
+        amount: parseFloat(amount) || 0,
+        status: 'pending_review',
+        description: `Contrato gerado a partir do formulário público de solicitação de dados para o projeto "${projectName}".`,
+        compiledText: compiledContractText,
+        services: services || [],
+        subtotal: parseFloat(amount) || 0,
+        discount: 0
+      };
+
+      saveProposal(userId, newProposal);
+
+      if (io) {
+        io.to(`user_${userId}`).emit('dgflow_proposals_updated', newProposal);
+      }
+
+      res.json({ success: true, proposalId: newProposalId });
+
+    } catch (error) {
+      console.error(`[PublicContractSubmit] Error:`, error.message);
+      res.status(500).json({ error: 'Erro ao salvar os dados e gerar o contrato.' });
     }
   });
 

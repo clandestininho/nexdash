@@ -206,11 +206,50 @@ export default function Agenda() {
   };
 
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    if (activeView === 'Mês') {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    } else if (activeView === 'Semana') {
+      const prevWeek = new Date(currentDate);
+      prevWeek.setDate(currentDate.getDate() - 7);
+      setCurrentDate(prevWeek);
+    } else if (activeView === 'Dia') {
+      const prevDay = new Date(currentDate);
+      prevDay.setDate(currentDate.getDate() - 1);
+      setCurrentDate(prevDay);
+    }
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    if (activeView === 'Mês') {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    } else if (activeView === 'Semana') {
+      const nextWeek = new Date(currentDate);
+      nextWeek.setDate(currentDate.getDate() + 7);
+      setCurrentDate(nextWeek);
+    } else if (activeView === 'Dia') {
+      const nextDay = new Date(currentDate);
+      nextDay.setDate(currentDate.getDate() + 1);
+      setCurrentDate(nextDay);
+    }
+  };
+
+  const getHeaderLabel = () => {
+    if (activeView === 'Mês') {
+      return currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+    } else if (activeView === 'Semana') {
+      const sunday = new Date(currentDate);
+      sunday.setDate(sunday.getDate() - sunday.getDay());
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
+      
+      if (sunday.getMonth() === saturday.getMonth() && sunday.getFullYear() === saturday.getFullYear()) {
+        return `${sunday.getDate()} a ${saturday.getDate()} de ${currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}`;
+      }
+      return `${sunday.getDate()} de ${sunday.toLocaleString('pt-BR', { month: 'short' })} a ${saturday.getDate()} de ${saturday.toLocaleString('pt-BR', { month: 'short', year: 'numeric' })}`;
+    } else if (activeView === 'Dia') {
+      return currentDate.toLocaleString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    return '';
   };
 
   const handleToday = () => {
@@ -282,50 +321,81 @@ export default function Agenda() {
     setEvtGoogleSync(false);
   };
 
-  // Generate calendar days for May 2026 grid mapping (May has 31 days, starts on Friday)
+  // Generate calendar days for grid mapping depending on activeView
   const calendarCells = useMemo(() => {
     const year = currentDate.getFullYear();
-    const month = currentDate.getMonth(); // 4 = May
+    const month = currentDate.getMonth();
     
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    const totalDays = new Date(year, month + 1, 0).getDate();
-    
-    const cells = [];
-    
-    // Adjacent prefix slots (April days slots styled with 50% opacity, no events)
-    const prevMonthDaysTotal = new Date(year, month, 0).getDate();
-    for (let i = firstDayIndex - 1; i >= 0; i--) {
-      cells.push({
-        dayNumber: prevMonthDaysTotal - i,
-        dateString: `${year}-${String(month).padStart(2, '0')}-${String(prevMonthDaysTotal - i).padStart(2, '0')}`,
-        isCurrentMonth: false,
-      });
-    }
-    
-    // Active month days slots
-    for (let i = 1; i <= totalDays; i++) {
-      const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      cells.push({
-        dayNumber: i,
+    if (activeView === 'Mês') {
+      const firstDayIndex = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+      
+      const cells = [];
+      
+      // Adjacent prefix slots
+      const prevMonthDaysTotal = new Date(year, month, 0).getDate();
+      for (let i = firstDayIndex - 1; i >= 0; i--) {
+        const d = new Date(year, month - 1, prevMonthDaysTotal - i);
+        cells.push({
+          dayNumber: prevMonthDaysTotal - i,
+          dateString: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+          isCurrentMonth: false,
+        });
+      }
+      
+      // Active month days slots
+      for (let i = 1; i <= totalDays; i++) {
+        const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        cells.push({
+          dayNumber: i,
+          dateString: dayStr,
+          isCurrentMonth: true,
+          isToday: dayStr === '2026-05-23', // Hardcoded today highlight
+        });
+      }
+
+      // Suffix adjacent month days slots
+      const totalSlots = cells.length;
+      const remainingSlots = totalSlots % 7 === 0 ? 0 : 7 - (totalSlots % 7);
+      for (let i = 1; i <= remainingSlots; i++) {
+        const d = new Date(year, month + 1, i);
+        cells.push({
+          dayNumber: i,
+          dateString: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+          isCurrentMonth: false,
+        });
+      }
+
+      return cells;
+    } else if (activeView === 'Semana') {
+      const sunday = new Date(currentDate);
+      const day = sunday.getDay();
+      sunday.setDate(sunday.getDate() - day);
+      
+      const cells = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(sunday);
+        d.setDate(sunday.getDate() + i);
+        const dayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        cells.push({
+          dayNumber: d.getDate(),
+          dateString: dayStr,
+          isCurrentMonth: d.getMonth() === currentDate.getMonth(),
+          isToday: dayStr === '2026-05-23',
+        });
+      }
+      return cells;
+    } else if (activeView === 'Dia') {
+      const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+      return [{
+        dayNumber: currentDate.getDate(),
         dateString: dayStr,
         isCurrentMonth: true,
-        isToday: dayStr === '2026-05-23', // Hardcoded today highlight
-      });
+        isToday: dayStr === '2026-05-23',
+      }];
     }
-
-    // Suffix adjacent month days slots
-    const totalSlots = cells.length;
-    const remainingSlots = totalSlots % 7 === 0 ? 0 : 7 - (totalSlots % 7);
-    for (let i = 1; i <= remainingSlots; i++) {
-      cells.push({
-        dayNumber: i,
-        dateString: `${year}-${String(month + 2).padStart(2, '0')}-${String(i).padStart(2, '0')}`,
-        isCurrentMonth: false,
-      });
-    }
-
-    return cells;
-  }, [currentDate]);
+    return [];
+  }, [currentDate, activeView]);
 
   // Filters list mapping checked category switches row
   const filteredEvents = useMemo(() => {
@@ -487,7 +557,7 @@ export default function Agenda() {
         {/* Row 2: Month Title & Navigators sitting on their own line */}
         <div className="flex items-center gap-2.5 pt-2">
           <h3 className="text-xl font-bold text-white tracking-tight uppercase font-body pl-0.5 first-letter:uppercase">
-            {currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
+            {getHeaderLabel()}
           </h3>
           
           <button 
@@ -601,16 +671,18 @@ export default function Agenda() {
         <div className="border border-[#1f1f1f] rounded-xl overflow-hidden bg-[#1f1f1f] shadow-sm shrink-0">
           
           {/* Weekday abbreviations */}
-          <div className="grid grid-cols-7 gap-px bg-[#1f1f1f]">
-            {WEEKDAYS.map(day => (
-              <div key={day} className="bg-[#121212] py-3 text-center text-xs font-bold text-zinc-500 tracking-wider">
-                {day}
-              </div>
-            ))}
-          </div>
+          {activeView !== 'Dia' && (
+            <div className="grid grid-cols-7 gap-px bg-[#1f1f1f]">
+              {WEEKDAYS.map(day => (
+                <div key={day} className="bg-[#121212] py-3 text-center text-xs font-bold text-zinc-500 tracking-wider">
+                  {day}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Days cell slots set to exactly 120px heights */}
-          <div className="grid grid-cols-7 gap-px bg-[#1f1f1f]">
+          <div className={`grid ${activeView === 'Dia' ? 'grid-cols-1' : 'grid-cols-7'} gap-px bg-[#1f1f1f]`}>
             {calendarCells.map((cell, idx) => {
               const cellDateEvents = filteredEvents.filter(evt => evt.date === cell.dateString);
               
@@ -623,7 +695,9 @@ export default function Agenda() {
                       setIsModalOpen(true);
                     }
                   }}
-                  className={`min-h-[120px] p-2 relative flex flex-col justify-between transition-all select-none ${
+                  className={`p-2 relative flex flex-col justify-between transition-all select-none ${
+                    activeView === 'Dia' ? 'min-h-[260px]' : 'min-h-[120px]'
+                  } ${
                     cell.isCurrentMonth
                       ? cell.isToday
                         ? 'bg-[#e13a40]/5 shadow-[inset_0_0_0_1px_rgba(225,58,64,0.35)] cursor-pointer'
@@ -1277,12 +1351,13 @@ export default function Agenda() {
 
                 <div className="flex-1 overflow-y-auto py-5 space-y-4 pr-1 text-xs">
                   <div className="p-3.5 bg-blue-500/5 border border-blue-500/20 text-blue-400 rounded-xl space-y-2">
-                    <span className="font-bold block">Como obter a URL do Calendário iCloud:</span>
+                    <span className="font-bold block">No iPhone / iPad:</span>
                     <ol className="list-decimal pl-4 space-y-1.5 text-[11px] leading-relaxed">
-                      <li>Abra o aplicativo <strong>Calendário</strong> no Mac ou iCloud.com.</li>
-                      <li>Clique no ícone de compartilhamento ao lado do nome do calendário.</li>
-                      <li>Marque a opção <strong>Calendário Público</strong>.</li>
-                      <li>Copie o endereço Webcal (começa com `webcal://`).</li>
+                      <li>Abra a aplicação <strong>Calendário</strong>.</li>
+                      <li>Toque em <strong>Calendários</strong> (na parte inferior do ecrã).</li>
+                      <li>Toque no botão de <strong>Informações (i)</strong> junto ao calendário do iCloud que pretende partilhar.</li>
+                      <li>Desloque para baixo e ative a opção <strong>Calendário Público</strong>.</li>
+                      <li>Toque em <strong>Partilhar Hiperligação</strong> (Share Link) e selecione <strong>Copiar</strong>.</li>
                       <li>Cole o endereço no campo abaixo!</li>
                     </ol>
                   </div>

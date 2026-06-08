@@ -362,6 +362,7 @@ export default function Onboarding({ onComplete }) {
         profile_pais: formData.profile_pais,
         profile_moeda: formData.profile_moeda,
         profile_avatar: formData.profile_avatar || formData.onboarding_logo,
+        watermark_logo: formData.onboarding_logo || formData.profile_avatar || '',
         
         onboarding_nicho: formData.onboarding_nicho === 'outro' ? formData.onboarding_nicho_custom : formData.onboarding_nicho,
         onboarding_services: JSON.stringify(allServices),

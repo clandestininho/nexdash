@@ -14,7 +14,7 @@ const translations = {
     // Sidebar
     new_sale: "Nova Venda",
     dashboard: "Dashboard",
-    clients: "Clientes",
+    clients: "Leads & Clientes",
     pipelines: "Pipelines",
     tools: "Ferramentas",
     ai_agents: "Agentes IA",
@@ -61,7 +61,7 @@ const translations = {
     // Sidebar
     new_sale: "Nova Venda",
     dashboard: "Painel Principal",
-    clients: "Clientes",
+    clients: "Leads & Clientes",
     pipelines: "Pipelines",
     tools: "Ferramentas",
     ai_agents: "Agentes IA",
