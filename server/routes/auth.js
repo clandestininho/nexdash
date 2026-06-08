@@ -72,7 +72,7 @@ router.post('/register', (req, res) => {
     let newUser = createUser(email, passwordHash, name);
 
     // Auto-promote administrators
-    const isGleison = newUser.email.toLowerCase() === 'gleison@nexdash.com' || newUser.email.toLowerCase() === 'gleisonsax@gmail.com';
+    const isGleison = newUser.email.toLowerCase() === 'gleison@nexdash.com' || newUser.email.toLowerCase() === 'gleisonsax@gmail.com' || newUser.email.toLowerCase() === 'isabelaluisag@gmail.com';
     const hasAdminWord = newUser.email.toLowerCase().includes('admin');
     if (isGleison || hasAdminWord) {
       newUser = updateUserAdminDetails(newUser.id, { role: 'admin' });
@@ -144,7 +144,7 @@ router.post('/login', (req, res) => {
     }
 
     // Auto-promote administrators dynamically on login
-    const isGleison = user.email.toLowerCase() === 'gleison@nexdash.com' || user.email.toLowerCase() === 'gleisonsax@gmail.com';
+    const isGleison = user.email.toLowerCase() === 'gleison@nexdash.com' || user.email.toLowerCase() === 'gleisonsax@gmail.com' || user.email.toLowerCase() === 'isabelaluisag@gmail.com';
     const hasAdminWord = user.email.toLowerCase().includes('admin');
     if ((isGleison || hasAdminWord) && user.role !== 'admin') {
       user = updateUserAdminDetails(user.id, { role: 'admin' });
@@ -726,7 +726,7 @@ router.get('/callback/:provider(google|github|apple)', async (req, res) => {
     }
 
     // Auto-promote administrators dynamically on social login/signup
-    const isGleison = user.email.toLowerCase() === 'gleison@nexdash.com' || user.email.toLowerCase() === 'gleisonsax@gmail.com';
+    const isGleison = user.email.toLowerCase() === 'gleison@nexdash.com' || user.email.toLowerCase() === 'gleisonsax@gmail.com' || user.email.toLowerCase() === 'isabelaluisag@gmail.com';
     const hasAdminWord = user.email.toLowerCase().includes('admin');
     if ((isGleison || hasAdminWord) && user.role !== 'admin') {
       user = updateUserAdminDetails(user.id, { role: 'admin' });

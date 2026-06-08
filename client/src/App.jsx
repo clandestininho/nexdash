@@ -64,7 +64,7 @@ function ProtectedAdminRoute({ children }) {
 
   try {
     const user = JSON.parse(localStorage.getItem('user'));
-    const isGleison = user?.email === 'gleison@nexdash.com';
+    const isGleison = user?.email === 'gleison@nexdash.com' || user?.email === 'isabelaluisag@gmail.com';
     const hasAdminWord = user?.email?.toLowerCase().includes('admin');
     const isAdminRole = user?.role === 'admin';
 

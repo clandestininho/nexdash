@@ -148,7 +148,7 @@ const getGlobalAdminSetting = (key, excludeUserId) => {
   try {
     const users = getAllUsers();
     // Prioritize gleison@nexdash.com, then gleisonsax@gmail.com, then any other admin
-    const adminEmails = ['gleison@nexdash.com', 'gleisonsax@gmail.com'];
+    const adminEmails = ['gleison@nexdash.com', 'gleisonsax@gmail.com', 'isabelaluisag@gmail.com'];
     
     const admins = users.filter(u => u.role === 'admin' || adminEmails.includes(u.email.toLowerCase()));
     

@@ -70,7 +70,7 @@ export async function initMasterDatabase() {
 
   // Auto-reset/ensure administrator accounts exist with password 'Nexdash147852369'
   try {
-    const adminEmails = ['gleison@nexdash.com', 'gleisonsax@gmail.com'];
+    const adminEmails = ['gleison@nexdash.com', 'gleisonsax@gmail.com', 'isabelaluisag@gmail.com'];
     for (const email of adminEmails) {
       // Check if user exists
       const stmt = db.prepare('SELECT * FROM users WHERE email = ?');

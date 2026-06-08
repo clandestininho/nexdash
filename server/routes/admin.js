@@ -16,7 +16,7 @@ const router = express.Router();
 
 // Middleware to strictly enforce administrator permissions
 function requireAdmin(req, res, next) {
-  const isGleison = req.user.email === 'gleison@nexdash.com';
+  const isGleison = req.user.email === 'gleison@nexdash.com' || req.user.email === 'isabelaluisag@gmail.com';
   const hasAdminWord = req.user.email.toLowerCase().includes('admin');
   const isAdminRole = req.user.role === 'admin';
 
