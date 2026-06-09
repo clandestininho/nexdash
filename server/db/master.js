@@ -85,22 +85,24 @@ export async function initMasterDatabase() {
       const targetHash = bcrypt.hashSync('Nexdash147852369', salt);
 
       if (!user) {
-        db.run('INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)', [
+        db.run('INSERT INTO users (email, password_hash, name, role, plan) VALUES (?, ?, ?, ?, ?)', [
           email,
           targetHash,
           email.split('@')[0],
-          'admin'
+          'admin',
+          'next'
         ]);
         console.log(`[MasterDB] Automatically created admin user: ${email}`);
       } else {
         const isValid = bcrypt.compareSync('Nexdash147852369', user.password_hash);
-        if (!isValid || user.role !== 'admin') {
-          db.run('UPDATE users SET password_hash = ?, role = ? WHERE email = ?', [
+        if (!isValid || user.role !== 'admin' || user.plan !== 'next') {
+          db.run('UPDATE users SET password_hash = ?, role = ?, plan = ? WHERE email = ?', [
             targetHash,
             'admin',
+            'next',
             email
           ]);
-          console.log(`[MasterDB] Automatically updated password/role for admin user: ${email}`);
+          console.log(`[MasterDB] Automatically updated password/role/plan for admin user: ${email}`);
         }
       }
     }

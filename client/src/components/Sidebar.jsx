@@ -324,7 +324,7 @@ export default function Sidebar() {
 
       {/* Subscriptions Alert & Assinar Button */}
       <div className="px-4 py-2 border-t border-[#1f1f1f] bg-[#121212]/40 select-none">
-        {currentUser?.plan === 'next' ? (
+        {currentUser?.plan === 'next' || currentUser?.role === 'admin' ? (
           <div className="flex items-center justify-center gap-1.5 text-xs font-black text-[#06b6d4] bg-[#06b6d4]/5 border border-[#06b6d4]/20 py-2.5 px-3 rounded-lg animate-pulse-soft">
             <Rocket className="h-3.5 w-3.5 fill-[#06b6d4]/10" />
             <span>{t('all_access_released')}</span>

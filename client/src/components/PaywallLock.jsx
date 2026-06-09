@@ -18,7 +18,10 @@ export default function PaywallLock({ path = '' }) {
           setUser(storedUser);
           
           const plan = storedUser.plan || 'trial';
-          if (plan === 'trial') {
+          const role = storedUser.role || 'user';
+          if (role === 'admin') {
+            setTrialExpired(false);
+          } else if (plan === 'trial') {
             const trialEndsAt = storedUser.trial_ends_at 
               ? new Date(storedUser.trial_ends_at.replace(' ', 'T'))
               : new Date(new Date(storedUser.created_at).getTime() + 7 * 24 * 60 * 60 * 1000);
