@@ -19,7 +19,9 @@ export default function KanbanBoard({
   stages = STAGES,
   onCardClick, 
   onMoveContact,
-  onAddCardClick 
+  onAddCardClick,
+  onMenuClick,
+  onConfigureStage
 }) {
   const handleDragEnd = async (result) => {
     const { destination, source, draggableId } = result;
@@ -65,6 +67,8 @@ export default function KanbanBoard({
               avgTime={avgTime}
               onCardClick={onCardClick}
               onAddCardClick={onAddCardClick}
+              onMenuClick={onMenuClick}
+              onConfigureStage={onConfigureStage}
             />
           );
         })}
@@ -73,7 +77,7 @@ export default function KanbanBoard({
   );
 }
 
-function KanbanColumn({ stage, contacts, avgTime, onCardClick, onAddCardClick }) {
+function KanbanColumn({ stage, contacts, avgTime, onCardClick, onAddCardClick, onMenuClick, onConfigureStage }) {
   const formatAvgTime = (timeHours) => {
     if (!timeHours) return null;
     if (timeHours >= 24) {
@@ -90,12 +94,22 @@ function KanbanColumn({ stage, contacts, avgTime, onCardClick, onAddCardClick })
       {/* Column header */}
       <div className="flex flex-col gap-1 px-4 py-3 border-b border-[#121214]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center min-w-0">
+          <div className="flex items-center min-w-0 gap-1.5">
             <h3 
               className="text-[13px] font-bold tracking-tight truncate text-white"
             >
               {stage.label}
             </h3>
+            <button
+              onClick={() => onConfigureStage?.(stage)}
+              className="p-0.5 rounded text-zinc-650 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+              title="Configurar etapa"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
           </div>
           
           {/* Low-contrast pill counter */}
@@ -135,6 +149,7 @@ function KanbanColumn({ stage, contacts, avgTime, onCardClick, onAddCardClick })
                   contact={contact}
                   index={idx}
                   onClick={onCardClick}
+                  onMenuClick={onMenuClick}
                 />
               ))}
               {provided.placeholder}
@@ -142,7 +157,7 @@ function KanbanColumn({ stage, contacts, avgTime, onCardClick, onAddCardClick })
               {/* Dotted + Adicionar card button */}
               <button 
                 onClick={() => onAddCardClick?.(stage.id)}
-                className="w-full flex items-center justify-center py-2.5 px-4 mt-1 border border-dashed border-[#1f1f23] hover:border-zinc-700 bg-transparent hover:bg-[#121214]/40 rounded-xl transition-all duration-200 text-zinc-500 hover:text-zinc-300 text-[11px] font-semibold gap-1 select-none"
+                className="w-full flex items-center justify-center py-2.5 px-4 mt-1 border border-dashed border-[#1f1f23] hover:border-zinc-700 bg-transparent hover:bg-[#121214]/40 rounded-xl transition-all duration-200 text-zinc-500 hover:text-zinc-300 text-[11px] font-semibold gap-1 select-none cursor-pointer"
               >
                 <span>+ Adicionar card</span>
               </button>

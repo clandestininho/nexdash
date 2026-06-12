@@ -128,12 +128,19 @@ async function handleMessage(uId, message, sock) {
     return;
   }
 
-  // Run active AI auto-responder if enabled and message is from contact (not me)
+  const contactPipeline = contact.pipeline_id || 'principal';
+
+  // Run active AI auto-responder if enabled and message is from contact (not me) and contact is in principal pipeline
   const responderEnabled = getSetting(uId, 'ai_responder_enabled') === 'true';
-  if (responderEnabled && fromMe === 0) {
+  if (responderEnabled && fromMe === 0 && contactPipeline === 'principal') {
     runAutoResponder(uId, jid, text, sock).catch((err) => {
       console.error(`[AutoResponder] User ${uId}: Error in auto-responder:`, err.message);
     });
+  }
+
+  // Skip AI classification if not in principal pipeline
+  if (contactPipeline !== 'principal') {
+    return;
   }
 
   // Check cooldown

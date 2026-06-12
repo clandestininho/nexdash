@@ -175,7 +175,7 @@ export default function createContactsRouter(io) {
   router.post('/', authenticateToken, (req, res) => {
     const userId = req.user.id;
     try {
-      const { name, phone, current_stage, project_value } = req.body;
+      const { name, phone, current_stage, project_value, pipeline_id } = req.body;
       if (!name || !phone) {
         return res.status(400).json({ error: 'Nome e telefone são obrigatórios.' });
       }
@@ -192,6 +192,7 @@ export default function createContactsRouter(io) {
         phone: phone.replace(/\D/g, ''),
         current_stage: current_stage || 'novo-lead',
         project_value: parseFloat(project_value) || 0,
+        pipeline_id: pipeline_id || 'principal',
         last_activity: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -270,11 +271,23 @@ export default function createContactsRouter(io) {
     const contactId = req.params.id;
 
     try {
-      const { stage, reason, project_value } = req.body;
+      const { stage, reason, project_value, pipeline_id } = req.body;
 
       const contact = getContactById(userId, contactId);
       if (!contact) {
         return res.status(404).json({ error: 'Contato não encontrado.' });
+      }
+
+      // Handle pipeline_id update if present
+      if (pipeline_id !== undefined) {
+        try {
+          upsertContact(userId, {
+            id: contactId,
+            pipeline_id: pipeline_id,
+          });
+        } catch (err) {
+          console.error(`[Route:Contacts] User ${userId}: Error updating pipeline_id:`, err.message);
+        }
       }
 
       // Handle project value update if present
@@ -291,7 +304,8 @@ export default function createContactsRouter(io) {
 
       // Handle stage override if stage is provided
       if (stage) {
-        if (!VALID_STAGES.includes(stage)) {
+        const targetPipeline = pipeline_id !== undefined ? pipeline_id : (contact.pipeline_id || 'principal');
+        if (targetPipeline === 'principal' && !VALID_STAGES.includes(stage)) {
           return res.status(400).json({
             error: `Estágio inválido. Deve ser um de: ${VALID_STAGES.join(', ')}`,
           });

@@ -87,6 +87,7 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState(null);
   const [subTabAutomacoes, setSubTabAutomacoes] = useState('automacoes'); // 'automacoes' | 'atividade'
+  const [selectedPipeIdAutomacoes, setSelectedPipeIdAutomacoes] = useState('principal');
   const [logs, setLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [automacoesFilter, setAutomacoesFilter] = useState('todas');
@@ -117,6 +118,30 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
       setIsTestingKey(null);
     }
   };
+
+  const parsedPipelines = React.useMemo(() => {
+    if (settings && settings.dgflow_custom_pipelines) {
+      try {
+        return JSON.parse(settings.dgflow_custom_pipelines);
+      } catch (err) {
+        console.error('Error parsing custom pipelines in WhatsAppPage:', err);
+      }
+    }
+    return [
+      {
+        id: 'principal',
+        name: 'Pipeline Principal',
+        stages: [
+          { id: 'novo-lead', label: 'Novo Lead' },
+          { id: 'qualificando', label: 'Qualificando' },
+          { id: 'proposta-enviada', label: 'Proposta Enviada' },
+          { id: 'negociando', label: 'Em Negociação' },
+          { id: 'fechado', label: 'Fechado' },
+          { id: 'perdido', label: 'Perdido' }
+        ]
+      }
+    ];
+  }, [settings]);
 
   // Groups State
   const [groups, setGroups] = useState([]);
@@ -1106,280 +1131,372 @@ export default function WhatsAppPage({ activeTab: initialActiveTab = 'conversas'
             {subTabAutomacoes === 'automacoes' ? (
               <form onSubmit={handleSaveSettings} className="space-y-6">
                 
-                {/* 1. Global AI Parameters Configuration */}
-                <Card className="bg-[#0c0c0e] border-[#1f1f23]">
-                  <CardHeader>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
-                      <Bot className="h-4 w-4 text-[#e13a40]" />
-                      Configuração Geral de IA
-                    </CardTitle>
-                    <CardDescription className="text-zinc-500 text-xs">
-                      Selecione o provedor de Inteligência Artificial e a sensibilidade do autopilot.
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      
-                      {/* AI Provider selector */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Provedor de IA</label>
-                        <select
-                          value={settings.ai_provider || 'gemini'}
-                          onChange={(e) => handleSettingChange('ai_provider', e.target.value)}
-                          className="w-full h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none"
+                {/* Funnel pipeline selector cards */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Funis de Atendimento</label>
+                  <p className="text-[10px] text-zinc-500 font-body block leading-relaxed -mt-1.5">
+                    Selecione um funil para configurar as automações de inteligência artificial ou palavras-chave das etapas.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {parsedPipelines.map(pipe => {
+                      const isSelected = selectedPipeIdAutomacoes === pipe.id;
+                      return (
+                        <div
+                          key={pipe.id}
+                          onClick={() => setSelectedPipeIdAutomacoes(pipe.id)}
+                          className={cn(
+                            "p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between min-h-[90px] select-none",
+                            isSelected 
+                              ? "bg-[#161619] border-[#e13a40] shadow-glow" 
+                              : "bg-[#0c0c0e] border-[#1f1f23] hover:border-zinc-800"
+                          )}
                         >
-                          <option value="gemini">Google Gemini 1.5 Flash (Gratuito)</option>
-                          <option value="anthropic">Anthropic Claude 3.5 Sonnet</option>
-                        </select>
-                      </div>
-
-                      {/* Confidence Threshold */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Confiança Mínima ({Math.round(parseFloat(settings.min_confidence || '0.85') * 100)}%)</label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="range"
-                            min="0.5"
-                            max="0.95"
-                            step="0.05"
-                            value={settings.min_confidence || '0.85'}
-                            onChange={(e) => handleSettingChange('min_confidence', e.target.value)}
-                            className="flex-1 accent-[#e13a40] h-1 bg-zinc-900 rounded-lg cursor-pointer"
-                          />
+                          <div className="flex items-center justify-between">
+                            <span className={cn("text-xs font-bold", isSelected ? "text-white" : "text-zinc-400")}>{pipe.name}</span>
+                            {pipe.id === 'principal' ? (
+                              <span className="text-[9px] bg-[#e13a40]/10 text-[#e13a40] border border-[#e13a40]/20 rounded px-1.5 py-0.5 font-extrabold uppercase">IA Ativa</span>
+                            ) : (
+                              <span className="text-[9px] bg-zinc-900 text-zinc-500 border border-zinc-800 rounded px-1.5 py-0.5 font-extrabold uppercase">Manual</span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-zinc-550 mt-2 font-medium">
+                            {pipe.stages?.length || 0} etapas configuradas
+                          </span>
                         </div>
-                      </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-                      {/* Cooldown Timer */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Frequência / Cooldown (Minutos)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="180"
-                          value={settings.cooldown_minutes || '30'}
-                          onChange={(e) => handleSettingChange('cooldown_minutes', e.target.value)}
-                          className="w-full h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none"
-                        />
-                      </div>
-
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* 1.5. AI Auto-Responder Chatbot Configuration */}
-                <Card className="bg-[#0c0c0e] border-[#1f1f23]">
-                  <CardHeader>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
-                      <Sparkles className="h-4 w-4 text-[#e13a40] animate-pulse-soft" />
-                      🤖 Agente de Resposta Automática (Chatbot Ativo)
-                    </CardTitle>
-                    <CardDescription className="text-zinc-500 text-xs">
-                      Permita que o Agente de IA responda as mensagens dos seus clientes no WhatsApp simulando um atendente humano.
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-5">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-zinc-900 bg-zinc-950/40 gap-4">
-                      <div className="space-y-1">
-                        <span className="text-xs font-bold text-white block">Status do Auto-Responder</span>
-                        <span className="text-[10px] text-zinc-500 block leading-relaxed">
-                          Se ativado, a IA responderá de forma inteligente todas as conversas novas que entrarem em contato no WhatsApp.
-                        </span>
-                      </div>
+                {selectedPipeIdAutomacoes === 'principal' ? (
+                  <>
+                    {/* 1. Global AI Parameters Configuration */}
+                    <Card className="bg-[#0c0c0e] border-[#1f1f23]">
+                      <CardHeader>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
+                          <Bot className="h-4 w-4 text-[#e13a40]" />
+                          Configuração Geral de IA
+                        </CardTitle>
+                        <CardDescription className="text-zinc-500 text-xs">
+                          Selecione o provedor de Inteligência Artificial e a sensibilidade do autopilot.
+                        </CardDescription>
+                      </CardHeader>
                       
-                      {/* Interactive Switch */}
-                      <button
-                        type="button"
-                        onClick={() => handleSettingChange('ai_responder_enabled', settings.ai_responder_enabled === 'true' ? 'false' : 'true')}
-                        className={cn(
-                          "w-12 h-6 rounded-full p-1 transition-all duration-200 outline-none flex items-center shrink-0 cursor-pointer",
-                          settings.ai_responder_enabled === 'true' ? 'bg-[#e13a40]' : 'bg-zinc-800'
-                        )}
-                      >
-                        <span className={cn(
-                          "h-4 w-4 rounded-full bg-white transition-all shadow-md transform",
-                          settings.ai_responder_enabled === 'true' ? 'translate-x-6' : 'translate-x-0'
-                        )} />
-                      </button>
-                    </div>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          
+                          {/* AI Provider selector */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Provedor de IA</label>
+                            <select
+                              value={settings.ai_provider || 'gemini'}
+                              onChange={(e) => handleSettingChange('ai_provider', e.target.value)}
+                              className="w-full h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none cursor-pointer"
+                            >
+                              <option value="gemini">Google Gemini 1.5 Flash (Gratuito)</option>
+                              <option value="anthropic">Anthropic Claude 3.5 Sonnet</option>
+                            </select>
+                          </div>
 
-                    <div className="grid grid-cols-1 gap-5">
-                      {/* Responding Delay (seconds) */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">
-                          Atraso na Resposta ({settings.ai_responder_delay || '4'} segundos)
-                        </label>
-                        <p className="text-[10px] text-zinc-500 font-body block leading-relaxed pb-1">
-                          Tempo em que a IA simula o status de <strong>"digitando..."</strong> no WhatsApp antes de disparar a resposta. Torna a conversa mais natural.
-                        </p>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="range"
-                            min="2"
-                            max="15"
-                            step="1"
-                            value={settings.ai_responder_delay || '4'}
-                            onChange={(e) => handleSettingChange('ai_responder_delay', e.target.value)}
-                            className="flex-1 accent-[#e13a40] h-1 bg-zinc-900 rounded-lg cursor-pointer"
-                          />
+                          {/* Confidence Threshold */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Confiança Mínima ({Math.round(parseFloat(settings.min_confidence || '0.85') * 100)}%)</label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="range"
+                                min="0.5"
+                                max="0.95"
+                                step="0.05"
+                                value={settings.min_confidence || '0.85'}
+                                onChange={(e) => handleSettingChange('min_confidence', e.target.value)}
+                                className="flex-1 accent-[#e13a40] h-1 bg-zinc-900 rounded-lg cursor-pointer"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Cooldown Timer */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Frequência / Cooldown (Minutos)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="180"
+                              value={settings.cooldown_minutes || '30'}
+                              onChange={(e) => handleSettingChange('cooldown_minutes', e.target.value)}
+                              className="w-full h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none"
+                            />
+                          </div>
+
                         </div>
-                      </div>
+                      </CardContent>
+                    </Card>
 
-                      {/* AI Instructions (Business Manual / FAQ) */}
-                      <div className="space-y-2 pt-1">
-                        <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">
-                          Manual de Atendimento da Empresa (FAQ / Instruções)
-                        </label>
-                        <p className="text-[10px] text-zinc-500 font-body block leading-relaxed">
-                          Escreva o FAQ, preços de serviços, horários e termos da sua empresa. A IA responderá com base estritamente nestas instruções.
-                        </p>
-                        <textarea
-                          rows={12}
-                          value={settings.ai_responder_instructions || ''}
-                          onChange={(e) => handleSettingChange('ai_responder_instructions', e.target.value)}
-                          placeholder="Digite aqui as regras de negócio da sua empresa..."
-                          className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-3 text-xs text-white focus:border-[#e13a40] outline-none font-body leading-relaxed"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* 2. AI API Keys Card */}
-                <Card className="bg-[#0c0c0e] border-[#1f1f23]">
-                  <CardHeader>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
-                      <Shield className="h-4 w-4 text-emerald-400" />
-                      Chaves de API (Inteligência Artificial)
-                    </CardTitle>
-                    <CardDescription className="text-zinc-500 text-xs">
-                      Insira suas chaves de API para habilitar as automações de classificação e respostas inteligentes do copiloto.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 1.5. AI Auto-Responder Chatbot Configuration */}
+                    <Card className="bg-[#0c0c0e] border-[#1f1f23]">
+                      <CardHeader>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
+                          <Sparkles className="h-4 w-4 text-[#e13a40] animate-pulse-soft" />
+                          🤖 Agente de Resposta Automática (Chatbot Ativo)
+                        </CardTitle>
+                        <CardDescription className="text-zinc-500 text-xs">
+                          Permita que o Agente de IA responda as mensagens dos seus clientes no WhatsApp simulando um atendente humano.
+                        </CardDescription>
+                      </CardHeader>
                       
-                      {/* Gemini Key Input */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Chave Google Gemini API</label>
-                          <a 
-                            href="https://aistudio.google.com/" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            Pegar chave gratuita ↗
-                          </a>
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="password"
-                            value={settings.gemini_api_key || ''}
-                            onChange={(e) => handleSettingChange('gemini_api_key', e.target.value)}
-                            placeholder="AIzaSy..."
-                            className="flex-1 h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none font-mono"
-                          />
+                      <CardContent className="space-y-5">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-zinc-900 bg-zinc-950/40 gap-4">
+                          <div className="space-y-1">
+                            <span className="text-xs font-bold text-white block">Status do Auto-Responder</span>
+                            <span className="text-[10px] text-zinc-550 block leading-relaxed">
+                              Se ativado, a IA responderá de forma inteligente todas as conversas novas que entrarem em contato no WhatsApp.
+                            </span>
+                          </div>
+                          
+                          {/* Interactive Switch */}
                           <button
                             type="button"
-                            onClick={() => handleTestApiKey('gemini')}
-                            disabled={isTestingKey}
-                            className="px-3 rounded-lg border border-zinc-900 bg-zinc-950 text-[10px] font-bold hover:bg-zinc-900 text-zinc-300 cursor-pointer"
+                            onClick={() => handleSettingChange('ai_responder_enabled', settings.ai_responder_enabled === 'true' ? 'false' : 'true')}
+                            className={cn(
+                              "w-12 h-6 rounded-full p-1 transition-all duration-200 outline-none flex items-center shrink-0 cursor-pointer",
+                              settings.ai_responder_enabled === 'true' ? 'bg-[#e13a40]' : 'bg-zinc-800'
+                            )}
                           >
-                            {isTestingKey === 'gemini' ? 'Testando...' : 'Testar'}
+                            <span className={cn(
+                              "h-4 w-4 rounded-full bg-white transition-all shadow-md transform",
+                              settings.ai_responder_enabled === 'true' ? 'translate-x-6' : 'translate-x-0'
+                            )} />
                           </button>
                         </div>
-                        {testResults.gemini === 'success' && (
-                          <p className="text-[10px] text-emerald-400 font-bold">✓ Conectado com sucesso!</p>
-                        )}
-                        {testResults.gemini === 'error' && (
-                          <p className="text-[10px] text-rose-500 font-bold">✗ Chave inválida ou sem cota.</p>
-                        )}
-                      </div>
 
-                      {/* Claude Key Input */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Chave Anthropic Claude API</label>
-                          <a 
-                            href="https://console.anthropic.com/" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            Pegar chave ↗
-                          </a>
+                        <div className="grid grid-cols-1 gap-5">
+                          {/* Responding Delay (seconds) */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">
+                              Atraso na Resposta ({settings.ai_responder_delay || '4'} segundos)
+                            </label>
+                            <p className="text-[10px] text-zinc-550 font-body block leading-relaxed pb-1">
+                              Tempo em que a IA simula o status de <strong>"digitando..."</strong> no WhatsApp antes de disparar a resposta. Torna a conversa mais natural.
+                            </p>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="range"
+                                min="2"
+                                max="15"
+                                step="1"
+                                value={settings.ai_responder_delay || '4'}
+                                onChange={(e) => handleSettingChange('ai_responder_delay', e.target.value)}
+                                className="flex-1 accent-[#e13a40] h-1 bg-zinc-900 rounded-lg cursor-pointer"
+                              />
+                            </div>
+                          </div>
+
+                          {/* AI Instructions (Business Manual / FAQ) */}
+                          <div className="space-y-2 pt-1">
+                            <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">
+                              Manual de Atendimento da Empresa (FAQ / Instruções)
+                            </label>
+                            <p className="text-[10px] text-zinc-550 font-body block leading-relaxed">
+                              Escreva o FAQ, preços de serviços, horários e termos da sua empresa. A IA responderá com base estritamente nestas instruções.
+                            </p>
+                            <textarea
+                              rows={12}
+                              value={settings.ai_responder_instructions || ''}
+                              onChange={(e) => handleSettingChange('ai_responder_instructions', e.target.value)}
+                              placeholder="Digite aqui as regras de negócio da sua empresa..."
+                              className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-3 text-xs text-white focus:border-[#e13a40] outline-none font-body leading-relaxed"
+                            />
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="password"
-                            value={settings.anthropic_api_key || ''}
-                            onChange={(e) => handleSettingChange('anthropic_api_key', e.target.value)}
-                            placeholder="sk-ant-..."
-                            className="flex-1 h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleTestApiKey('anthropic')}
-                            disabled={isTestingKey}
-                            className="px-3 rounded-lg border border-zinc-900 bg-zinc-950 text-[10px] font-bold hover:bg-zinc-900 text-zinc-300 cursor-pointer"
-                          >
-                            {isTestingKey === 'anthropic' ? 'Testando...' : 'Testar'}
-                          </button>
+                      </CardContent>
+                    </Card>
+
+                    {/* 2. AI API Keys Card */}
+                    <Card className="bg-[#0c0c0e] border-[#1f1f23]">
+                      <CardHeader>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
+                          <Shield className="h-4 w-4 text-emerald-400" />
+                          Chaves de API (Inteligência Artificial)
+                        </CardTitle>
+                        <CardDescription className="text-zinc-500 text-xs">
+                          Insira suas chaves de API para habilitar as automações de classificação e respostas inteligentes do copiloto.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          
+                          {/* Gemini Key Input */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Chave Google Gemini API</label>
+                              <a 
+                                href="https://aistudio.google.com/" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                Pegar chave gratuita ↗
+                              </a>
+                            </div>
+                            <div className="flex gap-2">
+                              <input
+                                type="password"
+                                value={settings.gemini_api_key || ''}
+                                onChange={(e) => handleSettingChange('gemini_api_key', e.target.value)}
+                                placeholder="AIzaSy..."
+                                className="flex-1 h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none font-mono"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleTestApiKey('gemini')}
+                                disabled={isTestingKey}
+                                className="px-3 rounded-lg border border-zinc-900 bg-zinc-950 text-[10px] font-bold hover:bg-zinc-900 text-zinc-300 cursor-pointer"
+                              >
+                                {isTestingKey === 'gemini' ? 'Testando...' : 'Testar'}
+                              </button>
+                            </div>
+                            {testResults.gemini === 'success' && (
+                              <p className="text-[10px] text-emerald-400 font-bold">✓ Conectado com sucesso!</p>
+                            )}
+                            {testResults.gemini === 'error' && (
+                              <p className="text-[10px] text-rose-500 font-bold">✗ Chave inválida ou sem cota.</p>
+                            )}
+                          </div>
+
+                          {/* Claude Key Input */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <label className="text-xs font-bold text-zinc-400 block uppercase tracking-wide">Chave Anthropic Claude API</label>
+                              <a 
+                                href="https://console.anthropic.com/" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                Pegar chave ↗
+                              </a>
+                            </div>
+                            <div className="flex gap-2">
+                              <input
+                                type="password"
+                                value={settings.anthropic_api_key || ''}
+                                onChange={(e) => handleSettingChange('anthropic_api_key', e.target.value)}
+                                placeholder="sk-ant-..."
+                                className="flex-1 h-10 rounded-lg border border-zinc-900 bg-zinc-950 px-3 text-xs text-white focus:border-[#e13a40] outline-none font-mono"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleTestApiKey('anthropic')}
+                                disabled={isTestingKey}
+                                className="px-3 rounded-lg border border-zinc-900 bg-zinc-950 text-[10px] font-bold hover:bg-zinc-900 text-zinc-300 cursor-pointer"
+                              >
+                                {isTestingKey === 'anthropic' ? 'Testando...' : 'Testar'}
+                              </button>
+                            </div>
+                            {testResults.anthropic === 'success' && (
+                              <p className="text-[10px] text-emerald-400 font-bold">✓ Conectado com sucesso!</p>
+                            )}
+                            {testResults.anthropic === 'error' && (
+                              <p className="text-[10px] text-rose-500 font-bold">✗ Chave inválida ou sem cota.</p>
+                            )}
+                          </div>
+
                         </div>
-                        {testResults.anthropic === 'success' && (
-                          <p className="text-[10px] text-emerald-400 font-bold">✓ Conectado com sucesso!</p>
-                        )}
-                        {testResults.anthropic === 'error' && (
-                          <p className="text-[10px] text-rose-500 font-bold">✗ Chave inválida ou sem cota.</p>
-                        )}
-                      </div>
+                      </CardContent>
+                    </Card>
 
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* 2. Keywords per CRM stage triggers */}
-                <Card className="bg-[#0c0c0e] border-[#1f1f23]">
-                  <CardHeader>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
-                      <Zap className="h-4 w-4 text-amber-500" />
-                      Palavras-chave de Triagem por Estágio
-                    </CardTitle>
-                    <CardDescription className="text-zinc-500 text-xs">
-                      Defina palavras e frases separadas por vírgula. Quando trocadas na conversa, o classificador usará como gatilho para atualizar a etapa do lead no funil.
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-4 pt-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 2. Keywords per CRM stage triggers */}
+                    <Card className="bg-[#0c0c0e] border-[#1f1f23]">
+                      <CardHeader>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
+                          <Zap className="h-4 w-4 text-amber-500" />
+                          Palavras-chave de Triagem por Estágio
+                        </CardTitle>
+                        <CardDescription className="text-zinc-500 text-xs">
+                          Defina palavras e frases separadas por vírgula. Quando trocadas na conversa, o classificador usará como gatilho para atualizar a etapa do lead no funil.
+                        </CardDescription>
+                      </CardHeader>
                       
-                      {[
-                        { key: 'keywords_novo-lead', label: '1. Novo Lead (Primeiro Contato)', desc: 'portfolio, orcamento, preco, disponibilidade...' },
-                        { key: 'keywords_qualificando', label: '2. Qualificando (Detalhamento)', desc: 'casamento, aniversario, ensaio, data, local...' },
-                        { key: 'keywords_proposta-enviada', label: '3. Proposta Enviada', desc: 'pdf, anexo, proposta enviada, tabela...' },
-                        { key: 'keywords_negociando', label: '4. Negociando', desc: 'desconto, negociar, prazo, parcelar, tá caro...' },
-                        { key: 'keywords_fechado', label: '5. Fechado (Contrato/Pix)', desc: 'fechado, contrato, pix, comprovante, fechamos...' },
-                        { key: 'keywords_em-producao', label: '6. Em Produção (Edição)', desc: 'andamento, progresso, previa, fotos prontas...' },
-                        { key: 'keywords_entregue', label: '7. Entregue', desc: 'recebido, baixado, link, amei, incriveis...' },
-                        { key: 'keywords_perdido', label: '8. Perdido (Cancelado)', desc: 'desisti, fechei com outro, nao vou fazer...' }
-                      ].map((item) => (
-                        <div key={item.key} className="p-4 rounded-xl bg-zinc-950 border border-zinc-900/60 space-y-2">
-                          <label className="text-[11px] font-bold text-zinc-300 block tracking-wide">{item.label}</label>
-                          <textarea
-                            rows="2"
-                            value={settings[item.key] || ''}
-                            onChange={(e) => handleSettingChange(item.key, e.target.value)}
-                            placeholder={item.desc}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-xs text-white placeholder-zinc-600 focus:border-[#e13a40] outline-none font-body leading-relaxed"
-                          />
-                        </div>
-                      ))}
+                      <CardContent className="space-y-4 pt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          
+                          {[
+                            { key: 'keywords_novo-lead', label: '1. Novo Lead (Primeiro Contato)', desc: 'portfolio, orcamento, preco, disponibilidade...' },
+                            { key: 'keywords_qualificando', label: '2. Qualificando (Detalhamento)', desc: 'casamento, aniversario, ensaio, data, local...' },
+                            { key: 'keywords_proposta-enviada', label: '3. Proposta Enviada', desc: 'pdf, anexo, proposta enviada, tabela...' },
+                            { key: 'keywords_negociando', label: '4. Negociando', desc: 'desconto, negociar, prazo, parcelar, tá caro...' },
+                            { key: 'keywords_fechado', label: '5. Fechado (Contrato/Pix)', desc: 'fechado, contrato, pix, comprovante, fechamos...' },
+                            { key: 'keywords_em-producao', label: '6. Em Produção (Edição)', desc: 'andamento, progresso, previa, fotos prontas...' },
+                            { key: 'keywords_entregue', label: '7. Entregue', desc: 'recebido, baixado, link, amei, incriveis...' },
+                            { key: 'keywords_perdido', label: '8. Perdido (Cancelado)', desc: 'desisti, fechei com outro, nao vou fazer...' }
+                          ].map((item) => (
+                            <div key={item.key} className="p-4 rounded-xl bg-zinc-950 border border-zinc-900/60 space-y-2">
+                              <label className="text-[11px] font-bold text-zinc-300 block tracking-wide">{item.label}</label>
+                              <textarea
+                                rows="2"
+                                value={settings[item.key] || ''}
+                                onChange={(e) => handleSettingChange(item.key, e.target.value)}
+                                placeholder={item.desc}
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-xs text-white placeholder-zinc-600 focus:border-[#e13a40] outline-none font-body leading-relaxed"
+                              />
+                            </div>
+                          ))}
 
-                    </div>
-                  </CardContent>
-                </Card>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : (
+                  <>
+                    {/* Warning / Info card for Manual Funnel */}
+                    <Card className="bg-[#0c0c0e] border-[#1f1f23]">
+                      <CardHeader>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
+                          <AlertCircle className="h-4 w-4 text-amber-500" />
+                          Funil 100% Manual
+                        </CardTitle>
+                        <CardDescription className="text-zinc-550 text-xs font-body">
+                          O chatbot de resposta automática e a triagem de IA estão desativados para o funil "{parsedPipelines.find(p => p.id === selectedPipeIdAutomacoes)?.name || ''}".
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="text-xs text-zinc-400 leading-relaxed font-body">
+                        As etapas deste funil são geridas manualmente pelos atendentes por meio do Kanban ou no detalhe do contato. A IA não interferirá no andamento dos contatos neste funil.
+                      </CardContent>
+                    </Card>
+
+                    {/* Keywords per stage triggers for custom pipeline */}
+                    <Card className="bg-[#0c0c0e] border-[#1f1f23]">
+                      <CardHeader>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-white">
+                          <Zap className="h-4 w-4 text-amber-500" />
+                          Palavras-chave de Referência por Estágio
+                        </CardTitle>
+                        <CardDescription className="text-zinc-550 text-xs">
+                          Adicione palavras ou expressões de referência para este estágio do funil customizado.
+                        </CardDescription>
+                      </CardHeader>
+                      
+                      <CardContent className="space-y-4 pt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {(parsedPipelines.find(p => p.id === selectedPipeIdAutomacoes)?.stages || []).map((stage) => {
+                            const itemKey = `keywords_${stage.id}`;
+                            return (
+                              <div key={stage.id} className="p-4 rounded-xl bg-zinc-950 border border-zinc-900/60 space-y-2">
+                                <label className="text-[11px] font-bold text-zinc-300 block tracking-wide">{stage.label}</label>
+                                <textarea
+                                  rows="2"
+                                  value={settings[itemKey] || ''}
+                                  onChange={(e) => handleSettingChange(itemKey, e.target.value)}
+                                  placeholder="palavras, chaves..."
+                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-xs text-white placeholder-zinc-600 focus:border-[#e13a40] outline-none font-body leading-relaxed"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
 
                 {/* Save button and status feedback */}
                 <div className="flex items-center gap-4 pt-2">

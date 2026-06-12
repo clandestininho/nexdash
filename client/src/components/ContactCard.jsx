@@ -3,7 +3,7 @@ import { Draggable } from '@hello-pangea/dnd';
 import { Clock, Mail, Phone, MoreVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export default function ContactCard({ contact, index, onClick }) {
+export default function ContactCard({ contact, index, onClick, onMenuClick }) {
   // Format entry date as 'Entrou em DD/MM/YY às HH:MM'
   const formatEntryDate = (dateString) => {
     if (!dateString) return 'Entrou em data indefinida';
@@ -82,8 +82,9 @@ export default function ContactCard({ contact, index, onClick }) {
               )}
 
               <button 
-                onClick={(e) => { e.stopPropagation(); onClick?.(contact); }}
-                className="text-zinc-500 hover:text-zinc-300 p-0.5 rounded transition-colors"
+                onClick={(e) => { e.stopPropagation(); onMenuClick?.(e, contact); }}
+                className="text-zinc-500 hover:text-zinc-300 p-0.5 rounded transition-colors cursor-pointer"
+                title="Opções do lead"
               >
                 <MoreVertical className="w-3.5 h-3.5" />
               </button>

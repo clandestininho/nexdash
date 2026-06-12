@@ -1,4 +1,5 @@
 import { getSocket } from './client.js';
+import { getSetting } from '../db/database.js';
 
 export const STAGE_LABELS = {
   'novo-lead': '🟢 Novo Lead',
@@ -10,6 +11,50 @@ export const STAGE_LABELS = {
   'entregue': '🎉 Entregue',
   'perdido': '🔴 Perdido',
 };
+
+export function getStageLabel(userId, stageId) {
+  const defaultLabels = {
+    'novo-lead': '🟢 Novo Lead',
+    'qualificando': '🔵 Qualificando',
+    'proposta-enviada': '🟡 Proposta Enviada',
+    'negociando': '🟠 Negociando',
+    'fechado': '✅ Fechado',
+    'em-producao': '🔨 Em Produção',
+    'entregue': '🎉 Entregue',
+    'perdido': '🔴 Perdido',
+  };
+
+  try {
+    const pipelinesStr = getSetting(userId, 'dgflow_custom_pipelines');
+    if (pipelinesStr) {
+      const pipelines = JSON.parse(pipelinesStr);
+      const principalPipe = pipelines.find(p => p.id === 'principal');
+      if (principalPipe) {
+        const stage = principalPipe.stages.find(s => s.id === stageId);
+        if (stage && stage.label) {
+          const emojiMap = {
+            'novo-lead': '🟢 ',
+            'qualificando': '🔵 ',
+            'proposta-enviada': '🟡 ',
+            'negociando': '🟠 ',
+            'fechado': '✅ ',
+            'em-producao': '🔨 ',
+            'entregue': '🎉 ',
+            'perdido': '🔴 '
+          };
+          const emoji = emojiMap[stageId] || '🏷️ ';
+          const cleanLabel = stage.label.trim();
+          const hasEmoji = /^\p{Emoji}/u.test(cleanLabel);
+          return hasEmoji ? cleanLabel : `${emoji}${cleanLabel}`;
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[LabelManager] Error getting custom stage label:`, err.message);
+  }
+
+  return defaultLabels[stageId] || defaultLabels[stageId.toLowerCase()] || stageId;
+}
 
 // Mapping: userId -> Map(label display name → WhatsApp label ID)
 const userLabelIdMaps = new Map();
@@ -81,8 +126,8 @@ export async function applyLabel(userId, jid, newStage, oldStage) {
     const labelIdMap = userLabelIdMaps.get(uId) || new Map();
 
     // Remove old stage label if it exists
-    if (oldStage && STAGE_LABELS[oldStage]) {
-      const oldLabelName = STAGE_LABELS[oldStage];
+    if (oldStage) {
+      const oldLabelName = getStageLabel(userId, oldStage);
       const oldLabelId = labelIdMap.get(oldLabelName);
 
       if (oldLabelId && typeof sock.removeChatLabel === 'function') {
@@ -96,8 +141,8 @@ export async function applyLabel(userId, jid, newStage, oldStage) {
     }
 
     // Add new stage label
-    if (newStage && STAGE_LABELS[newStage]) {
-      const newLabelName = STAGE_LABELS[newStage];
+    if (newStage) {
+      const newLabelName = getStageLabel(userId, newStage);
       const newLabelId = labelIdMap.get(newLabelName);
 
       if (newLabelId && typeof sock.addChatLabel === 'function') {
@@ -129,7 +174,7 @@ export function getLabelId(userId, stageName) {
   const labelIdMap = userLabelIdMaps.get(uId);
   if (!labelIdMap) return undefined;
 
-  const displayName = STAGE_LABELS[stageName];
+  const displayName = getStageLabel(userId, stageName);
   if (!displayName) return undefined;
   return labelIdMap.get(displayName);
 }

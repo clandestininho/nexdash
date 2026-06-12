@@ -140,6 +140,23 @@ export default function Kanban() {
     { id: 'fechado', label: 'Fechado', color: 'green' }
   ]);
 
+  // Stage Config Modal States
+  const [settings, setSettings] = useState({});
+  const [isStageConfigModalOpen, setIsStageConfigModalOpen] = useState(false);
+  const [selectedStageForConfig, setSelectedStageForConfig] = useState(null);
+  const [editingPipelineId, setEditingPipelineId] = useState(null);
+
+  // Card Menu & Transfer Opportunity Modal States
+  const [cardMenu, setCardMenu] = useState(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferContact, setTransferContact] = useState(null);
+  const [stageConfigName, setStageConfigName] = useState('');
+  const [stageConfigColor, setStageConfigColor] = useState('');
+  const [stageConfigPosition, setStageConfigPosition] = useState(0);
+  const [stageConfigKeywords, setStageConfigKeywords] = useState('');
+  const [transferPipelineId, setTransferPipelineId] = useState('principal');
+  const [transferStageId, setTransferStageId] = useState('novo-lead');
+
   // Active pipeline object mapping stages
   const activePipeline = useMemo(() => {
     return pipelines.find(p => p.id === selectedPipelineId) || pipelines[0];
@@ -149,6 +166,30 @@ export default function Kanban() {
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Fetch settings to sync custom pipelines
+      try {
+        const settingsRes = await apiFetch('/api/settings');
+        const settingsData = await settingsRes.json();
+        setSettings(settingsData || {});
+        if (settingsData && settingsData.dgflow_custom_pipelines) {
+          const parsed = JSON.parse(settingsData.dgflow_custom_pipelines);
+          // Migrate em-contato to qualificando if present in 'principal' pipeline
+          const migrated = parsed.map(p => {
+            if (p.id === 'principal') {
+              return {
+                ...p,
+                stages: p.stages.map(s => s.id === 'em-contato' ? { ...s, id: 'qualificando', label: 'Qualificando' } : s)
+              };
+            }
+            return p;
+          });
+          setPipelines(migrated);
+          localStorage.setItem('dgflow_custom_pipelines', JSON.stringify(migrated));
+        }
+      } catch (err) {
+        console.error('Erro ao buscar configurações de pipelines:', err);
+      }
+
       const res = await apiFetch('/api/contacts');
       const data = await res.json();
       const stagesData = data.stages || {};
@@ -480,6 +521,20 @@ export default function Kanban() {
   };
 
   // Custom pipelines functions
+  const savePipelinesToServer = async (updatedPipelines) => {
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_custom_pipelines: JSON.stringify(updatedPipelines)
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao salvar pipelines no servidor:', err);
+    }
+  };
+
   const handleAddCustomStage = () => {
     setNewPipelineStages([
       ...newPipelineStages,
@@ -487,31 +542,227 @@ export default function Kanban() {
     ]);
   };
 
+  const handleOpenEditPipelineModal = (pipeId) => {
+    const pipe = pipelines.find(p => p.id === pipeId);
+    if (pipe) {
+      setEditingPipelineId(pipeId);
+      setNewPipelineName(pipe.name);
+      
+      const getHexColorName = (hex) => {
+        const hexLower = String(hex).toLowerCase();
+        if (hexLower === '#4a90d9') return 'blue';
+        if (hexLower === '#c9a84c') return 'yellow';
+        if (hexLower === '#9c27b0') return 'purple';
+        if (hexLower === '#d4842a') return 'orange';
+        if (hexLower === '#4caf50') return 'green';
+        return 'red';
+      };
+
+      setNewPipelineStages(pipe.stages.map(s => ({
+        id: s.id,
+        label: s.label,
+        color: getHexColorName(s.color)
+      })));
+      setIsPipelineModalOpen(true);
+    }
+  };
+
+  const handleDeletePipeline = (pipeId) => {
+    if (pipeId === 'principal') return;
+    if (window.confirm('Tem certeza de que deseja excluir este pipeline? Todos os contatos deste pipeline serão movidos para o pipeline Principal.')) {
+      const updatedContacts = contacts.map(c => {
+        if ((c.pipeline_id || 'principal') === pipeId) {
+          return {
+            ...c,
+            pipeline_id: 'principal',
+            current_stage: 'novo-lead'
+          };
+        }
+        return c;
+      });
+      
+      setContacts(updatedContacts);
+      
+      const stored = localStorage.getItem('dgflow_local_contacts');
+      const locals = stored ? JSON.parse(stored) : [];
+      const updatedLocals = locals.map(c => {
+        if ((c.pipeline_id || 'principal') === pipeId) {
+          return {
+            ...c,
+            pipeline_id: 'principal',
+            current_stage: 'novo-lead'
+          };
+        }
+        return c;
+      });
+      localStorage.setItem('dgflow_local_contacts', JSON.stringify(updatedLocals));
+
+      contacts.forEach(async c => {
+        if ((c.pipeline_id || 'principal') === pipeId) {
+          try {
+            await fetch(`/api/contacts/${c.id}/override`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pipeline_id: 'principal', stage: 'novo-lead' })
+            });
+          } catch {}
+        }
+      });
+
+      const updatedPipes = pipelines.filter(p => p.id !== pipeId);
+      setPipelines(updatedPipes);
+      localStorage.setItem('dgflow_custom_pipelines', JSON.stringify(updatedPipes));
+      savePipelinesToServer(updatedPipes);
+      setSelectedPipelineId('principal');
+    }
+  };
+
   const handleCreateCustomPipeline = () => {
     if (!newPipelineName) {
       alert('Por favor, informe o Nome do Pipeline.');
       return;
     }
-    const newP = {
-      id: 'pipe-' + Date.now(),
-      name: newPipelineName,
-      stages: newPipelineStages.map(s => ({
+
+    const mappedStages = newPipelineStages.map(s => {
+      const colorHex = s.color === 'blue' ? '#4A90D9' 
+        : s.color === 'yellow' ? '#C9A84C' 
+        : s.color === 'purple' ? '#9C27B0' 
+        : s.color === 'orange' ? '#D4842A' 
+        : s.color === 'green' ? '#4CAF50' 
+        : '#B05C3A';
+      return {
         id: s.id,
         label: s.label,
-        color: s.color === 'blue' ? '#4A90D9' : s.color === 'yellow' ? '#C9A84C' : s.color === 'purple' ? '#9C27B0' : s.color === 'orange' ? '#D4842A' : s.color === 'green' ? '#4CAF50' : '#B05C3A'
-      }))
-    };
+        color: colorHex
+      };
+    });
 
-    const updated = [...pipelines, newP];
+    let updated;
+    if (editingPipelineId) {
+      updated = pipelines.map(p => {
+        if (p.id === editingPipelineId) {
+          return {
+            ...p,
+            name: newPipelineName,
+            stages: mappedStages
+          };
+        }
+        return p;
+      });
+    } else {
+      const newP = {
+        id: 'pipe-' + Date.now(),
+        name: newPipelineName,
+        stages: mappedStages
+      };
+      updated = [...pipelines, newP];
+      setSelectedPipelineId(newP.id);
+    }
+
     setPipelines(updated);
     localStorage.setItem('dgflow_custom_pipelines', JSON.stringify(updated));
-    
-    // Switch to new pipeline
-    setSelectedPipelineId(newP.id);
-    
-    // Reset states
+    savePipelinesToServer(updated);
+
     setNewPipelineName('');
+    setEditingPipelineId(null);
     setIsPipelineModalOpen(false);
+  };
+
+  // Stage keywords and config
+  const handleSaveStageKeywords = async (stageId, keywords) => {
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          [`keywords_${stageId}`]: keywords
+        })
+      });
+      setSettings(prev => ({
+        ...prev,
+        [`keywords_${stageId}`]: keywords
+      }));
+    } catch (err) {
+      console.error('Erro ao salvar palavras-chave da etapa:', err);
+    }
+  };
+
+  const handleSaveStageConfig = async (stageId, newLabel, newColor, newPositionIndex, newKeywords) => {
+    const updatedPipelines = pipelines.map(p => {
+      if (p.id === selectedPipelineId) {
+        let newStages = [...p.stages];
+        const stageIdx = newStages.findIndex(s => s.id === stageId);
+        if (stageIdx !== -1) {
+          const stageObj = { ...newStages[stageIdx], label: newLabel };
+          if (selectedPipelineId !== 'principal') {
+            stageObj.color = newColor;
+          }
+          
+          newStages.splice(stageIdx, 1);
+          newStages.splice(newPositionIndex, 0, stageObj);
+        }
+        return { ...p, stages: newStages };
+      }
+      return p;
+    });
+
+    setPipelines(updatedPipelines);
+    localStorage.setItem('dgflow_custom_pipelines', JSON.stringify(updatedPipelines));
+    await savePipelinesToServer(updatedPipelines);
+    
+    await handleSaveStageKeywords(stageId, newKeywords);
+    
+    setIsStageConfigModalOpen(false);
+    setSelectedStageForConfig(null);
+  };
+
+  // Card Menu Handlers
+  const handleOpenCardMenu = (e, contact) => {
+    e.stopPropagation();
+    setCardMenu({
+      contact,
+      x: e.clientX,
+      y: e.clientY
+    });
+  };
+
+  const handleTransferContactPipeline = async (contactId, targetPipelineId, targetStageId) => {
+    setContacts(prev => {
+      const next = [...prev];
+      const idx = next.findIndex(c => String(c.id) === String(contactId));
+      if (idx !== -1) {
+        next[idx] = {
+          ...next[idx],
+          pipeline_id: targetPipelineId,
+          current_stage: targetStageId,
+          last_activity: new Date().toISOString()
+        };
+        const stored = localStorage.getItem('dgflow_local_contacts');
+        const locals = stored ? JSON.parse(stored) : [];
+        const lIdx = locals.findIndex(c => String(c.id) === String(contactId));
+        if (lIdx !== -1) {
+          locals[lIdx].pipeline_id = targetPipelineId;
+          locals[lIdx].current_stage = targetStageId;
+          locals[lIdx].last_activity = new Date().toISOString();
+        } else {
+          locals.push(next[idx]);
+        }
+        localStorage.setItem('dgflow_local_contacts', JSON.stringify(locals));
+      }
+      return next;
+    });
+
+    try {
+      await fetch(`/api/contacts/${contactId}/override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pipeline_id: targetPipelineId, stage: targetStageId }),
+      });
+    } catch (err) {
+      console.error('Erro ao transferir contato:', err);
+    }
+    setIsTransferModalOpen(false);
+    setTransferContact(null);
   };
 
   // Spreadsheets Import / Export
@@ -606,15 +857,6 @@ export default function Kanban() {
             <span>Auto-lead do WhatsApp</span>
           </button>
 
-          {/* + Pipeline creator button */}
-          <button
-            onClick={() => setIsPipelineModalOpen(true)}
-            className="text-xs p-2 rounded-lg font-bold bg-[#121212] border border-[#1f1f1f] text-zinc-400 hover:text-white transition-all flex items-center"
-            title="Criar Novo Pipeline"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-
           {/* Spacer */}
           <span className="w-px h-5 bg-[#1f1f1f] mx-1" />
 
@@ -686,6 +928,40 @@ export default function Kanban() {
               {pipe.name}
             </button>
           ))}
+          <button
+            onClick={() => {
+              setEditingPipelineId(null);
+              setNewPipelineName('');
+              setNewPipelineStages([
+                { id: 'novo-lead', label: 'Novo Lead', color: 'blue' },
+                { id: 'primeiro-contato', label: 'Primeiro Contato', color: 'yellow' },
+                { id: 'proposta-enviada', label: 'Proposta Enviada', color: 'purple' },
+                { id: 'negociacao', label: 'Negociação', color: 'orange' },
+                { id: 'fechado', label: 'Fechado', color: 'green' }
+              ]);
+              setIsPipelineModalOpen(true);
+            }}
+            className="text-xs p-1.5 rounded-xl font-bold bg-[#121212] border border-[#1f1f1f] text-zinc-400 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
+            title="Criar Novo Pipeline"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          {selectedPipelineId !== 'principal' && (
+            <div className="flex items-center gap-1.5 ml-2 border-l border-[#1f1f1f] pl-3">
+              <button
+                onClick={() => handleOpenEditPipelineModal(selectedPipelineId)}
+                className="text-xs py-1 px-2.5 rounded-lg border border-[#1f1f1f] bg-[#121212]/30 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
+                Editar Funil
+              </button>
+              <button
+                onClick={() => handleDeletePipeline(selectedPipelineId)}
+                className="text-xs py-1 px-2.5 rounded-lg border border-red-950 bg-red-950/20 text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+              >
+                Excluir
+              </button>
+            </div>
+          )}
         </div>
 
         {/* View Switches (Kanban vs Lista) & selections triggers */}
@@ -751,6 +1027,16 @@ export default function Kanban() {
             onAddCardClick={(stageId) => {
               setNewLeadForm(prev => ({ ...prev, stage: stageId, pipelineId: selectedPipelineId }));
               setIsNewLeadModalOpen(true);
+            }}
+            onMenuClick={handleOpenCardMenu}
+            onConfigureStage={(stage) => {
+              setSelectedStageForConfig(stage);
+              setStageConfigName(stage.label);
+              setStageConfigColor(stage.color || '#B05C3A');
+              const idx = activePipeline.stages.findIndex(s => s.id === stage.id);
+              setStageConfigPosition(idx);
+              setStageConfigKeywords(settings[`keywords_${stage.id}`] || '');
+              setIsStageConfigModalOpen(true);
             }}
           />
         )
@@ -1465,13 +1751,16 @@ export default function Kanban() {
         </div>
       )}
 
-      {/* ──── MODAL 4: CRIAR NOVO PIPELINE DE CAPTAÇÃO MODAL (Print 5 clone) ──── */}
+      {/* ──── MODAL 4: CRIAR OU EDITAR PIPELINE DE CAPTAÇÃO MODAL ──── */}
       {isPipelineModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 font-body animate-fade-in">
           <div className="w-full max-w-md rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
             
             <button 
-              onClick={() => setIsPipelineModalOpen(false)}
+              onClick={() => {
+                setIsPipelineModalOpen(false);
+                setEditingPipelineId(null);
+              }}
               className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10"
             >
               <X className="h-4 w-4" />
@@ -1479,7 +1768,9 @@ export default function Kanban() {
 
             {/* Title */}
             <div className="pb-4 border-b border-[#1f1f1f] space-y-1">
-              <h2 className="text-base font-bold text-white">Criar Novo Pipeline de Captação</h2>
+              <h2 className="text-base font-bold text-white">
+                {editingPipelineId ? 'Editar Pipeline de Captação' : 'Criar Novo Pipeline de Captação'}
+              </h2>
             </div>
 
             {/* Form list scroll */}
@@ -1506,7 +1797,7 @@ export default function Kanban() {
                   <button
                     type="button"
                     onClick={handleAddCustomStage}
-                    className="text-[10px] font-bold text-[#e13a40] hover:underline flex items-center gap-1"
+                    className="text-[10px] font-bold text-[#e13a40] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     + Adicionar Etapa
                   </button>
@@ -1515,6 +1806,40 @@ export default function Kanban() {
                 <div className="space-y-2">
                   {newPipelineStages.map((stage, idx) => (
                     <div key={stage.id} className="flex items-center gap-2">
+                      {/* Up/Down buttons */}
+                      <div className="flex flex-col gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => {
+                            const updated = [...newPipelineStages];
+                            const temp = updated[idx];
+                            updated[idx] = updated[idx - 1];
+                            updated[idx - 1] = temp;
+                            setNewPipelineStages(updated);
+                          }}
+                          className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                          title="Mover para cima"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === newPipelineStages.length - 1}
+                          onClick={() => {
+                            const updated = [...newPipelineStages];
+                            const temp = updated[idx];
+                            updated[idx] = updated[idx + 1];
+                            updated[idx + 1] = temp;
+                            setNewPipelineStages(updated);
+                          }}
+                          className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                          title="Mover para baixo"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                      </div>
+
                       {/* Name input */}
                       <input 
                         type="text"
@@ -1556,7 +1881,7 @@ export default function Kanban() {
                           const updated = newPipelineStages.filter((_, sIdx) => sIdx !== idx);
                           setNewPipelineStages(updated);
                         }}
-                        className="text-zinc-650 hover:text-white p-1"
+                        className="text-zinc-650 hover:text-white p-1 cursor-pointer"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -1571,8 +1896,11 @@ export default function Kanban() {
             <div className="pt-4 border-t border-[#1f1f1f] flex items-center justify-end gap-3 text-xs">
               <button
                 type="button"
-                onClick={() => setIsPipelineModalOpen(false)}
-                className="py-2.5 px-4 rounded-lg bg-zinc-900 border border-[#1f1f1f] text-zinc-400 hover:text-white font-semibold transition-all h-9"
+                onClick={() => {
+                  setIsPipelineModalOpen(false);
+                  setEditingPipelineId(null);
+                }}
+                className="py-2.5 px-4 rounded-lg bg-zinc-900 border border-[#1f1f1f] text-zinc-400 hover:text-white font-semibold transition-all h-9 cursor-pointer"
               >
                 Cancelar
               </button>
@@ -1580,9 +1908,9 @@ export default function Kanban() {
               <button
                 type="button"
                 onClick={handleCreateCustomPipeline}
-                className="py-2.5 px-5.5 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold transition-all shadow-md shadow-[#e13a40]/10 h-9"
+                className="py-2.5 px-5.5 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold transition-all shadow-md shadow-[#e13a40]/10 h-9 cursor-pointer"
               >
-                Criar Pipeline
+                {editingPipelineId ? 'Salvar Alterações' : 'Criar Pipeline'}
               </button>
             </div>
 
@@ -1597,6 +1925,253 @@ export default function Kanban() {
         visible={detailPanelOpen}
         onClose={handleClosePanel}
       />
+
+      {/* ──── MODAL 4.5: CONFIGURAR ETAPA DO PIPELINE (StageConfigModal) ──── */}
+      {isStageConfigModalOpen && selectedStageForConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-body animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+            
+            <button 
+              onClick={() => {
+                setIsStageConfigModalOpen(false);
+                setSelectedStageForConfig(null);
+              }}
+              className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10 cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="pb-4 border-b border-[#1f1f1f] flex items-center gap-2">
+              <h2 className="text-base font-bold text-white">Configurar Etapa</h2>
+            </div>
+
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveStageConfig(
+                  selectedStageForConfig.id, 
+                  stageConfigName, 
+                  stageConfigColor, 
+                  stageConfigPosition, 
+                  stageConfigKeywords
+                );
+              }} 
+              className="space-y-4 py-4 overflow-y-auto pr-1 flex-1 scrollbar-thin text-xs"
+            >
+              {/* Name input */}
+              <div className="space-y-1">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase">Nome da Etapa</label>
+                <input 
+                  type="text"
+                  required
+                  value={stageConfigName}
+                  onChange={(e) => setStageConfigName(e.target.value)}
+                  className="w-full bg-[#1a1a1a] text-white text-xs rounded-lg border border-[#1f1f1f] p-2.5 outline-none focus:border-[#e13a40] h-9 font-semibold"
+                />
+              </div>
+
+              {/* Color Select */}
+              {selectedPipelineId !== 'principal' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase">Cor da Etapa</label>
+                  <select
+                    value={stageConfigColor}
+                    onChange={(e) => setStageConfigColor(e.target.value)}
+                    className="w-full bg-[#1a1a1a] text-white text-xs rounded-lg border border-[#1f1f1f] p-2.5 outline-none focus:border-[#e13a40] font-semibold h-9 cursor-pointer"
+                  >
+                    <option value="#4A90D9">🔵 Azul</option>
+                    <option value="#C9A84C">🟡 Amarelo</option>
+                    <option value="#9C27B0">🟣 Roxo</option>
+                    <option value="#D4842A">🟠 Laranja</option>
+                    <option value="#4CAF50">🟢 Verde</option>
+                    <option value="#B05C3A">🔴 Vermelho</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Position selector */}
+              <div className="space-y-1">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase">Posição no Funil / Ordem</label>
+                <select
+                  value={stageConfigPosition}
+                  onChange={(e) => setStageConfigPosition(parseInt(e.target.value))}
+                  className="w-full bg-[#1a1a1a] text-white text-xs rounded-lg border border-[#1f1f1f] p-2.5 outline-none focus:border-[#e13a40] font-semibold h-9 cursor-pointer"
+                >
+                  {activePipeline.stages.map((_, index) => (
+                    <option key={index} value={index}>
+                      {index + 1}º - {index === 0 ? 'Início' : index === activePipeline.stages.length - 1 ? 'Fim' : 'Intermediário'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* AI Keywords Guidelines */}
+              <div className="space-y-1">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase block">Palavras-chave da IA / Diretrizes de Triagem</label>
+                <p className="text-[9.5px] text-zinc-500 leading-normal block mb-1 font-body">
+                  Insira as palavras-chave separadas por vírgula para classificar automaticamente as conversas que chegam para esta etapa.
+                </p>
+                <textarea
+                  rows="3"
+                  value={stageConfigKeywords}
+                  onChange={(e) => setStageConfigKeywords(e.target.value)}
+                  placeholder="Ex: preco, orcamento, desconto, pix"
+                  className="w-full bg-[#1a1a1a] border border-[#1f1f1f] rounded-lg p-2.5 text-xs text-white focus:border-[#e13a40] outline-none font-body leading-relaxed"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-4 border-t border-[#1f1f1f] text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStageConfigModalOpen(false);
+                    setSelectedStageForConfig(null);
+                  }}
+                  className="py-2.5 px-5 rounded-xl border border-[#1f1f1f] text-zinc-450 hover:text-white hover:bg-zinc-900 transition-all font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="py-2.5 px-6 rounded-xl bg-[#e13a40] hover:bg-[#c52f34] text-white font-extrabold shadow-sm transition-all cursor-pointer"
+                >
+                  Salvar Configurações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ──── CONTEXT MENU: OPÇÕES DO CARD (TRÊS PONTINHOS) ──── */}
+      {cardMenu && (
+        <div 
+          className="fixed z-50 bg-[#121212] border border-[#1f1f1f] shadow-2xl rounded-xl py-1.5 w-48 text-xs text-zinc-300 font-medium font-body animate-fade-in"
+          style={{ 
+            top: Math.min(cardMenu.y, window.innerHeight - 150), 
+            left: Math.min(cardMenu.x, window.innerWidth - 200) 
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              handleCardClick(cardMenu.contact);
+              setCardMenu(null);
+            }}
+            className="w-full text-left px-4 py-2 hover:bg-zinc-900 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            Ver Detalhes
+          </button>
+          <button
+            onClick={() => {
+              setTransferContact(cardMenu.contact);
+              setTransferPipelineId(cardMenu.contact.pipeline_id || 'principal');
+              setTransferStageId(cardMenu.contact.current_stage || 'novo-lead');
+              setIsTransferModalOpen(true);
+              setCardMenu(null);
+            }}
+            className="w-full text-left px-4 py-2 hover:bg-zinc-900 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            Transferir de Funil
+          </button>
+          <button
+            onClick={() => {
+              handleArchiveLead(cardMenu.contact.id);
+              setCardMenu(null);
+            }}
+            className="w-full text-left px-4 py-2 hover:bg-zinc-900 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            Arquivar Lead
+          </button>
+          <div className="border-t border-[#1f1f1f] my-1" />
+          <button
+            onClick={() => {
+              handleDeletePermanent(cardMenu.contact.id);
+              setCardMenu(null);
+            }}
+            className="w-full text-left px-4 py-2 hover:bg-zinc-900 text-rose-500 hover:text-rose-450 flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            Excluir Permanente
+          </button>
+        </div>
+      )}
+
+      {/* ──── MODAL 6: TRANSFERIR CONTATO DE FUNIL / PIPELINE ──── */}
+      {isTransferModalOpen && transferContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-body animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-[#121212] border border-[#1f1f1f] text-white p-6 shadow-2xl relative overflow-hidden flex flex-col">
+            
+            <button 
+              onClick={() => {
+                setIsTransferModalOpen(false);
+                setTransferContact(null);
+              }}
+              className="absolute right-4 top-4 p-1 text-zinc-500 hover:text-white rounded-lg transition-colors z-10 cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="pb-4 border-b border-[#1f1f1f] space-y-1">
+              <h2 className="text-base font-bold text-white">Transferir de Funil</h2>
+              <p className="text-zinc-550 text-xs font-body">Mova o contato para outro funil ou etapa de atendimento.</p>
+            </div>
+
+            <div className="py-5 space-y-4 flex-1 text-xs">
+              {/* Select Pipeline */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Pipeline de Destino</label>
+                <select
+                  value={transferPipelineId}
+                  onChange={(e) => {
+                    const nextPipeId = e.target.value;
+                    setTransferPipelineId(nextPipeId);
+                    const nextPipeObj = pipelines.find(p => p.id === nextPipeId) || pipelines[0];
+                    setTransferStageId(nextPipeObj.stages[0].id);
+                  }}
+                  className="w-full bg-[#1a1a1a] text-white text-xs rounded-lg border border-[#1f1f1f] p-2.5 outline-none focus:border-[#e13a40] font-semibold h-9 cursor-pointer"
+                >
+                  {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              {/* Select Stage */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Etapa / Coluna de Destino</label>
+                <select
+                  value={transferStageId}
+                  onChange={(e) => setTransferStageId(e.target.value)}
+                  className="w-full bg-[#1a1a1a] text-white text-xs rounded-lg border border-[#1f1f1f] p-2.5 outline-none focus:border-[#e13a40] font-semibold h-9 cursor-pointer"
+                >
+                  {(pipelines.find(p => p.id === transferPipelineId) || activePipeline).stages.map(s => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-[#1f1f1f] flex items-center justify-end gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsTransferModalOpen(false);
+                  setTransferContact(null);
+                }}
+                className="py-2 px-4 rounded-lg text-zinc-400 hover:text-white font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTransferContactPipeline(transferContact.id, transferPipelineId, transferStageId)}
+                className="py-2 px-5.5 rounded-lg bg-[#e13a40] hover:bg-[#c52f34] text-white font-bold transition-all shadow-md cursor-pointer"
+              >
+                Transferir
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

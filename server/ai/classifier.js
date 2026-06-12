@@ -30,19 +30,53 @@ export const STAGE_LABELS = {
  */
 function getDynamicSystemPrompt(uId) {
   const companyName = getSetting(uId, 'profile_empresa') || 'NEXDASH';
+
+  let novoLeadLabel = 'Novo Lead';
+  let qualificandoLabel = 'Qualificando';
+  let propostaEnviadaLabel = 'Proposta Enviada';
+  let negociandoLabel = 'Em Negociação';
+  let fechadoLabel = 'Fechado';
+  let emProducaoLabel = 'Em Produção';
+  let entregueLabel = 'Entregue';
+  let perdidoLabel = 'Perdido';
+
+  try {
+    const pipelinesStr = getSetting(uId, 'dgflow_custom_pipelines');
+    if (pipelinesStr) {
+      const pipelines = JSON.parse(pipelinesStr);
+      const principal = pipelines.find(p => p.id === 'principal');
+      if (principal) {
+        const getLabel = (id, def) => {
+          const s = principal.stages.find(st => st.id === id);
+          return s ? s.label : def;
+        };
+        novoLeadLabel = getLabel('novo-lead', novoLeadLabel);
+        qualificandoLabel = getLabel('qualificando', qualificandoLabel);
+        propostaEnviadaLabel = getLabel('proposta-enviada', propostaEnviadaLabel);
+        negociandoLabel = getLabel('negociando', negociandoLabel);
+        fechadoLabel = getLabel('fechado', fechadoLabel);
+        emProducaoLabel = getLabel('em-producao', emProducaoLabel);
+        entregueLabel = getLabel('entregue', entregueLabel);
+        perdidoLabel = getLabel('perdido', perdidoLabel);
+      }
+    }
+  } catch (err) {
+    console.error(`[Classifier] Error parsing custom pipelines for prompt:`, err.message);
+  }
+
   let prompt = `You are a CRM classifier for a company in Brazil called "${companyName}".
 Analyze this WhatsApp conversation and determine which sales stage this client is in.
 Respond with ONLY a JSON object: {"stage": "stage-name", "confidence": 0.95, "reason": "brief explanation in Portuguese"}
 
 Stages:
-- novo-lead: First contact, asking about services, "vi seu trabalho", "tem disponibilidade"
-- qualificando: Discussing project details, dates, event type, location
-- proposta-enviada: Price/budget mentioned, "vou te mandar o orçamento", "segue a proposta"
-- negociando: "tá um pouco caro", "tem desconto", "vou pensar", "posso parcelar?"
-- fechado: "fechado!", "pode confirmar", "vou fazer o pix", contract signing
-- em-producao: "quando vai ficar pronto", "já editou?", delivery happening
-- entregue: "amei!", "ficou incrível", project concluded
-- perdido: "desisti", "vou fazer com outro", prolonged silence`;
+- novo-lead (${novoLeadLabel}): First contact, asking about services, "vi seu trabalho", "tem disponibilidade"
+- qualificando (${qualificandoLabel}): Discussing project details, dates, event type, location
+- proposta-enviada (${propostaEnviadaLabel}): Price/budget mentioned, "vou te mandar o orçamento", "segue a proposta"
+- negociando (${negociandoLabel}): "tá um pouco caro", "tem desconto", "vou pensar", "posso parcelar?"
+- fechado (${fechadoLabel}): "fechado!", "pode confirmar", "vou fazer o pix", contract signing
+- em-producao (${emProducaoLabel}): "quando vai ficar pronto", "já editou?", delivery happening
+- entregue (${entregueLabel}): "amei!", "ficou incrível", project concluded
+- perdido (${perdidoLabel}): "desisti", "vou fazer com outro", prolonged silence`;
 
   try {
     const novoLead = getSetting(uId, 'keywords_novo-lead');
@@ -57,14 +91,14 @@ Stages:
     const keywordsPrompt = `
 
 Custom boost keywords for classification (use these keywords/phrases to boost confidence in the respective stage):
-- novo-lead: ${novoLead || 'None'}
-- qualificando: ${qualificando || 'None'}
-- proposta-enviada: ${propostaEnviada || 'None'}
-- negociando: ${negociando || 'None'}
-- fechado: ${fechado || 'None'}
-- em-producao: ${emProducao || 'None'}
-- entregue: ${entregue || 'None'}
-- perdido: ${perdido || 'None'}
+- novo-lead (${novoLeadLabel}): ${novoLead || 'None'}
+- qualificando (${qualificandoLabel}): ${qualificando || 'None'}
+- proposta-enviada (${propostaEnviadaLabel}): ${propostaEnviada || 'None'}
+- negociando (${negociandoLabel}): ${negociando || 'None'}
+- fechado (${fechadoLabel}): ${fechado || 'None'}
+- em-producao (${emProducaoLabel}): ${emProducao || 'None'}
+- entregue (${entregueLabel}): ${entregue || 'None'}
+- perdido (${perdidoLabel}): ${perdido || 'None'}
 `;
     prompt += keywordsPrompt;
   } catch (err) {
