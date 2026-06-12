@@ -439,7 +439,7 @@ export default function Clientes() {
     setFormCidade(contact.cidade || '');
     setFormEstado(contact.estado || '');
     setFormInteresse(contact.project_interest || '');
-    setFormTags(contact.tags ? contact.tags.join(', ') : '');
+    setFormTags(Array.isArray(contact.tags) ? contact.tags.join(', ') : (typeof contact.tags === 'string' ? contact.tags : ''));
     setFormIssRetido(contact.iss_retido || false);
     setFormObs(contact.last_message || '');
     setFormPais(contact.pais || 'Brasil');

@@ -17,7 +17,8 @@ import {
   ArrowRight,
   TrendingUp,
   Sparkles,
-  ClipboardList
+  ClipboardList,
+  Copy
 } from 'lucide-react';
 import { cn, formatRelativeTime, formatPhone } from '../lib/utils';
 import { STAGES, getStage, getStageColor, getStageLabel } from '../lib/stages';
@@ -463,17 +464,24 @@ export default function ContactDetailPanel({ contact, history = [], visible, onC
                     <div className="bg-zinc-950/40 p-4 border border-zinc-900 rounded-xl space-y-4">
                       <div className="space-y-1.5">
                         <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider block">Etiquetas</span>
-                        {contact.tags && contact.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {contact.tags.map((tag, idx) => (
-                              <span key={idx} className="text-[10px] font-bold px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-zinc-650 italic block">Nenhuma etiqueta cadastrada</span>
-                        )}
+                        {(() => {
+                          const contactTags = Array.isArray(contact.tags) 
+                            ? contact.tags 
+                            : (typeof contact.tags === 'string' 
+                                ? contact.tags.split(',').map(t => t.trim()).filter(Boolean) 
+                                : []);
+                          return contactTags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {contactTags.map((tag, idx) => (
+                                <span key={idx} className="text-[10px] font-bold px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-zinc-650 italic block">Nenhuma etiqueta cadastrada</span>
+                          );
+                        })()}
                       </div>
                       
                       <div className="space-y-1">
