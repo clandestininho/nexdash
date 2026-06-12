@@ -82,9 +82,9 @@ function AdminLayout() {
   return (
     <div className="flex min-h-screen bg-[#070708] text-zinc-100 font-body">
       <AdminSidebar />
-      <main className="flex-1 ml-64 min-h-screen flex flex-col bg-[#070708]">
+      <main className="flex-1 lg:ml-64 ml-0 min-h-screen flex flex-col bg-[#070708]">
         <AdminHeader />
-        <div className="p-8 flex-1 bg-[#070708]">
+        <div className="p-4 sm:p-8 flex-1 bg-[#070708]">
           <Routes>
             <Route path="/" element={<AdminDashboard />} />
             <Route path="/subscribers" element={<AdminDashboard />} />
@@ -241,7 +241,7 @@ function AppLayout() {
       <PricingModal />
 
       {/* Main Content */}
-      <main className={`flex-1 ml-64 min-h-screen flex flex-col relative overflow-hidden transition-all duration-200 ${theme === 'light' ? 'bg-[#ffffff]' : 'bg-[#0a0a0a]'}`}>
+      <main className={`flex-1 lg:ml-64 ml-0 min-h-screen flex flex-col relative overflow-hidden transition-all duration-200 ${theme === 'light' ? 'bg-[#ffffff]' : 'bg-[#0a0a0a]'}`}>
         {/* Dynamic Brand Logo Watermark inside CRM */}
         <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
           <img 
@@ -278,7 +278,7 @@ function AppLayout() {
         )}
 
         {/* Page Content */}
-        <div className="p-6 flex-1 bg-transparent z-10">
+        <div className="p-4 sm:p-6 flex-1 bg-transparent z-10">
           <Routes>
             {/* Core / Legacy routes */}
             <Route path="/" element={guard(<Clientes />, '/')} />

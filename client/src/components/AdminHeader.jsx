@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Sparkles, Smartphone, CheckCircle, AlertTriangle, XCircle, Globe, ChevronDown } from 'lucide-react';
+import { Menu, Shield, Sparkles, Smartphone, CheckCircle, AlertTriangle, XCircle, Globe, ChevronDown } from 'lucide-react';
 import { socket } from '../lib/socket';
 import { apiFetch } from '../lib/api';
 
@@ -60,11 +60,20 @@ export default function AdminHeader() {
   }, []);
 
   return (
-    <header className="h-16 border-b border-[#1f1f1f] bg-[#070708]/85 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30 select-none">
+    <header className="h-16 border-b border-[#1f1f1f] bg-[#070708]/85 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 select-none">
       
-      {/* Left Title and Shield Tag */}
+      {/* Left Title, Hamburger, and Shield Tag */}
       <div className="flex items-center gap-3">
-        <h1 className="text-sm font-extrabold text-white tracking-wide uppercase font-body">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-admin-sidebar'))}
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1a1a] lg:hidden shrink-0 transition-all"
+          title="Alternar Menu Lateral"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        <h1 className="text-sm font-extrabold text-white tracking-wide uppercase font-body hidden sm:block">
           SaaS Control Center
         </h1>
         <div className="flex items-center gap-1.5 bg-[#e13a40]/10 border border-[#e13a40]/30 px-2 py-0.5 rounded text-xs font-extrabold text-[#e13a40] tracking-wider uppercase">

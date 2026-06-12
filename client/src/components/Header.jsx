@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, Sparkles, Sun, Moon, Globe, ChevronDown, Check, ChevronRight, AlertCircle } from 'lucide-react';
+import { Menu, Search, Bell, Sparkles, Sun, Moon, Globe, ChevronDown, Check, ChevronRight, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useSocket } from '../hooks/useSocket';
 import { getStageColor, getStageLabel } from '../lib/stages';
@@ -158,11 +158,20 @@ export default function Header() {
   const currencySymbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : 'R$';
 
   return (
-    <header className="h-16 border-b border-[#1f1f1f] bg-[#0a0a0a]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
+    <header className="h-16 border-b border-[#1f1f1f] bg-[#0a0a0a]/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
       
-      {/* Left: Search Box Widget */}
-      <div className="flex items-center gap-4 w-96">
-        <div className="relative w-full">
+      {/* Left: Search Box Widget & Mobile Hamburger Menu */}
+      <div className="flex items-center gap-3 w-auto lg:w-96 flex-1 lg:flex-none">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1a1a] lg:hidden shrink-0 transition-all"
+          title="Alternar Menu Lateral"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        <div className="relative w-full hidden sm:block">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
           <input
             type="text"

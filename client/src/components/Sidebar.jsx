@@ -34,6 +34,19 @@ import { useTranslation } from '../lib/i18n';
 
 export default function Sidebar() {
   const { lang, t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleToggle = () => setIsOpen(prev => !prev);
+    const handleClose = () => setIsOpen(false);
+    window.addEventListener('toggle-sidebar', handleToggle);
+    window.addEventListener('close-sidebar', handleClose);
+    return () => {
+      window.removeEventListener('toggle-sidebar', handleToggle);
+      window.removeEventListener('close-sidebar', handleClose);
+    };
+  }, []);
+
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [userName, setUserName] = useState('Gleison');
   const [userEmail, setUserEmail] = useState('gleisonsax@gmail.com');
@@ -140,6 +153,7 @@ export default function Sidebar() {
       return (
         <NavLink
           to={to}
+          onClick={() => setIsOpen(false)}
           className={({ isActive }) =>
             cn(
               'flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 text-sm font-body font-normal',
@@ -163,6 +177,7 @@ export default function Sidebar() {
       <NavLink
         to={to}
         end={to === '/'}
+        onClick={() => setIsOpen(false)}
         className={({ isActive }) =>
           cn(
             'flex items-center justify-between rounded-xl px-4 py-2 text-base font-body font-normal transition-all duration-200 group relative',
@@ -193,11 +208,21 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col bg-[#121212] border-r border-[#1f1f1f] text-zinc-300">
+    <>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+      <aside className={cn(
+        "fixed left-0 top-0 z-40 flex h-screen w-64 flex-col bg-[#121212] border-r border-[#1f1f1f] text-zinc-300 transition-transform duration-300 lg:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
       
       {/* Brand Logo */}
       <div className="px-6 pt-5 pb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+        <div className="flex items-center gap-2.5" onClick={() => { navigate('/'); setIsOpen(false); }} style={{ cursor: 'pointer' }}>
           <img src={logo} alt="NEXDASH Logo" className="h-6 w-6 object-contain drop-shadow-[0_0_10px_rgba(225,58,64,0.3)] animate-pulse-soft" />
           <span className="font-extrabold text-lg text-white tracking-tight font-sans">NEXDASH</span>
         </div>
@@ -362,5 +387,6 @@ export default function Sidebar() {
       </div>
 
     </aside>
+    </>
   );
 }

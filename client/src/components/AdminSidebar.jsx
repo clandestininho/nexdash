@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import logo from '../logo.png';
+import { cn } from '../lib/utils';
 import {
   LayoutDashboard,
   Users,
@@ -14,6 +15,18 @@ import {
 export default function AdminSidebar() {
   const [adminName, setAdminName] = useState('Administrador');
   const [adminEmail, setAdminEmail] = useState('admin@nexdash.com');
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleToggle = () => setIsOpen(prev => !prev);
+    const handleClose = () => setIsOpen(false);
+    window.addEventListener('toggle-admin-sidebar', handleToggle);
+    window.addEventListener('close-admin-sidebar', handleClose);
+    return () => {
+      window.removeEventListener('toggle-admin-sidebar', handleToggle);
+      window.removeEventListener('close-admin-sidebar', handleClose);
+    };
+  }, []);
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -57,7 +70,17 @@ export default function AdminSidebar() {
   ];
 
   return (
-    <aside className="w-64 border-r border-[#1f1f1f] bg-[#070708] flex flex-col fixed h-screen left-0 top-0 z-40 select-none">
+    <>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+      <aside className={cn(
+        "w-64 border-r border-[#1f1f1f] bg-[#070708] flex flex-col fixed h-screen left-0 top-0 z-40 select-none transition-transform duration-300 lg:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
       
       {/* Sidebar Logo Header */}
       <div className="p-6 border-b border-[#1f1f1f] flex items-center gap-3">
@@ -92,6 +115,7 @@ export default function AdminSidebar() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={() => setIsOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-all ${
                 isActive
                   ? 'bg-gradient-to-r from-[#e13a40]/15 to-[#e13a40]/5 border-l-2 border-[#e13a40] text-white font-bold drop-shadow-[0_0_6px_rgba(225,58,64,0.1)]'
@@ -116,6 +140,7 @@ export default function AdminSidebar() {
         {/* Back to Client App Portal Route */}
         <NavLink
           to="/"
+          onClick={() => setIsOpen(false)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold tracking-wide text-zinc-400 hover:bg-[#121214] hover:text-zinc-100 transition-all"
         >
           <ArrowLeftRight className="h-4.5 w-4.5 text-zinc-550" />
@@ -147,6 +172,7 @@ export default function AdminSidebar() {
         </div>
       </div>
 
-    </aside>
+     </aside>
+    </>
   );
 }
