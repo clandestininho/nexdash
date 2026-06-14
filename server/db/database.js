@@ -161,7 +161,8 @@ export function getUserDb(userId) {
       is_blacklisted INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now')),
       updated_at DATETIME DEFAULT (datetime('now')),
-      pipeline_id TEXT DEFAULT 'principal'
+      pipeline_id TEXT DEFAULT 'principal',
+      custom_fields TEXT
     )
   `);
 
@@ -172,6 +173,15 @@ export function getUserDb(userId) {
   } catch (e) {
     if (!e.message.includes('duplicate column name') && !e.message.includes('already exists')) {
       console.warn(`[Database] Safe migration column warning for "pipeline_id":`, e.message);
+    }
+  }
+
+  try {
+    userDb.run(`ALTER TABLE contacts ADD COLUMN custom_fields TEXT`);
+    console.log(`[Database] Safe migration: Added custom_fields column to contacts for user ${uId}`);
+  } catch (e) {
+    if (!e.message.includes('duplicate column name') && !e.message.includes('already exists')) {
+      console.warn(`[Database] Safe migration column warning for "custom_fields":`, e.message);
     }
   }
 
@@ -332,6 +342,33 @@ export function upsertContact(userId, data) {
   const udb = getUserDb(userId);
   const existing = queryOne(udb, `SELECT * FROM contacts WHERE id = ?`, [data.id]);
 
+  // Extract and merge custom fields
+  let customFieldsStr = null;
+  if (data.custom_fields !== undefined) {
+    customFieldsStr = data.custom_fields;
+  } else {
+    const customKeys = ['email', 'doc', 'cep', 'endereço', 'numero', 'complemento', 'bairro', 'cidade', 'estado', 'project_interest', 'tags', 'renewal_date', 'iss_retido', 'pais'];
+    const customObj = {};
+    customKeys.forEach(k => {
+      if (data[k] !== undefined) {
+        customObj[k] = data[k];
+      }
+    });
+
+    if (Object.keys(customObj).length > 0) {
+      let merged = {};
+      if (existing && existing.custom_fields) {
+        try {
+          merged = JSON.parse(existing.custom_fields);
+        } catch (e) {}
+      }
+      Object.assign(merged, customObj);
+      customFieldsStr = JSON.stringify(merged);
+    } else if (existing) {
+      customFieldsStr = existing.custom_fields;
+    }
+  }
+
   if (existing) {
     runSql(udb, `
       UPDATE contacts SET
@@ -348,6 +385,7 @@ export function upsertContact(userId, data) {
         last_classified = COALESCE(?, last_classified),
         is_blacklisted = COALESCE(?, is_blacklisted),
         pipeline_id = COALESCE(?, pipeline_id),
+        custom_fields = COALESCE(?, custom_fields),
         updated_at = datetime('now')
       WHERE id = ?
     `, [
@@ -364,12 +402,13 @@ export function upsertContact(userId, data) {
       data.last_classified || null,
       data.is_blacklisted ?? null,
       data.pipeline_id || null,
+      customFieldsStr,
       data.id,
     ]);
   } else {
     runSql(udb, `
-      INSERT INTO contacts (id, name, phone, profile_pic, current_stage, previous_stage, confidence, last_reason, project_value, last_message, last_activity, last_classified, is_blacklisted, pipeline_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      INSERT INTO contacts (id, name, phone, profile_pic, current_stage, previous_stage, confidence, last_reason, project_value, last_message, last_activity, last_classified, is_blacklisted, pipeline_id, custom_fields, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `, [
       data.id,
       data.name || null,
@@ -385,6 +424,7 @@ export function upsertContact(userId, data) {
       data.last_classified || null,
       data.is_blacklisted ?? 0,
       data.pipeline_id || 'principal',
+      customFieldsStr,
     ]);
   }
 }

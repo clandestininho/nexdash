@@ -24,6 +24,7 @@ import Equipe from './pages/Equipe';
 import WhatsAppPage from './pages/WhatsAppPage';
 import NewSaleModal from './components/NewSaleModal';
 import Header from './components/Header';
+import PwaInstallBanner from './components/PwaInstallBanner';
 
 // Dedicated customized pages
 import Clientes from './pages/Clientes';
@@ -239,6 +240,9 @@ function AppLayout() {
 
       {/* Global SaaS Pricing modal picker */}
       <PricingModal />
+
+      {/* Floating PWA Install Prompt helper for mobile screens */}
+      <PwaInstallBanner />
 
       {/* Main Content */}
       <main className={`flex-1 lg:ml-64 ml-0 min-h-screen flex flex-col relative overflow-hidden transition-all duration-200 ${theme === 'light' ? 'bg-[#ffffff]' : 'bg-[#0a0a0a]'}`}>

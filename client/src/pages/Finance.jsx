@@ -337,7 +337,22 @@ export default function Finance() {
   };
 
   useEffect(() => {
-    const loadTxs = () => {
+    const loadTxs = async () => {
+      try {
+        const res = await apiFetch('/api/settings');
+        if (res.ok) {
+          const settingsObj = await res.json();
+          if (settingsObj && settingsObj.dgflow_transactions) {
+            const parsed = JSON.parse(settingsObj.dgflow_transactions);
+            setTransactions(parsed);
+            localStorage.setItem('dgflow_transactions', JSON.stringify(parsed));
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching transactions from settings:', err);
+      }
+
       const stored = localStorage.getItem('dgflow_transactions');
       if (stored) {
         setTransactions(JSON.parse(stored));
@@ -357,10 +372,21 @@ export default function Finance() {
     };
   }, []);
 
-  const saveTxs = (newTxs) => {
+  const saveTxs = async (newTxs) => {
     setTransactions(newTxs);
     localStorage.setItem('dgflow_transactions', JSON.stringify(newTxs));
     window.dispatchEvent(new CustomEvent('dgflow_transactions_updated'));
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_transactions: JSON.stringify(newTxs)
+        })
+      });
+    } catch (err) {
+      console.error('Error saving transactions to settings:', err);
+    }
   };
 
   const handleSavePix = async () => {

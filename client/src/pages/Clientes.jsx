@@ -95,10 +95,19 @@ export default function Clientes() {
       const data = await res.json();
       const stagesData = data.stages || {};
       
-      // Flatten
+      // Flatten & parse custom fields from database
       const flat = [];
       Object.keys(stagesData).forEach((stageId) => {
-        flat.push(...(stagesData[stageId] || []));
+        const stageContacts = (stagesData[stageId] || []).map(c => {
+          let parsedFields = {};
+          if (c.custom_fields) {
+            try {
+              parsedFields = JSON.parse(c.custom_fields);
+            } catch (e) {}
+          }
+          return { ...c, ...parsedFields };
+        });
+        flat.push(...stageContacts);
       });
       
       // Load local contacts override from localStorage to keep custom fields persistently active!
@@ -127,6 +136,33 @@ export default function Clientes() {
       mergedList.sort((a, b) => new Date(b.last_activity || Date.now()) - new Date(a.last_activity || Date.now()));
       
       setContacts(mergedList);
+
+      // Perform background sync if we have local contacts
+      if (locals.length > 0) {
+        setTimeout(async () => {
+          let syncSuccessCount = 0;
+          for (const localC of locals) {
+            try {
+              const postRes = await apiFetch('/api/contacts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(localC)
+              });
+              if (postRes.ok) {
+                syncSuccessCount++;
+              }
+            } catch (syncErr) {
+              console.error('Failed to sync contact:', localC.id, syncErr);
+            }
+          }
+          if (syncSuccessCount === locals.length) {
+            localStorage.removeItem('dgflow_local_contacts');
+            console.log('[Sync] Todos os contatos locais foram sincronizados com sucesso.');
+          } else {
+            console.warn('[Sync] Alguns contatos não puderam ser sincronizados.');
+          }
+        }, 1000);
+      }
     } catch (err) {
       console.error('Erro ao buscar clientes:', err);
       // Fallback
@@ -363,38 +399,55 @@ export default function Clientes() {
       pais: formPais || 'Brasil'
     };
 
-    // Save to local storage
-    const stored = localStorage.getItem('dgflow_local_contacts');
-    const locals = stored ? JSON.parse(stored) : [];
-    const idx = locals.findIndex(c => c.id === contactId);
-    if (idx !== -1) {
-      locals[idx] = leadData;
-    } else {
-      locals.unshift(leadData);
-    }
-    localStorage.setItem('dgflow_local_contacts', JSON.stringify(locals));
-
-    // Update state
-    setContacts(prev => {
-      const filtered = prev.filter(c => c.id !== contactId);
-      filtered.unshift(leadData);
-      return filtered.sort((a, b) => new Date(b.last_activity) - new Date(a.last_activity));
-    });
-
-    // Try to sync with server in background
+    // Try to sync with server
     try {
-      await apiFetch('/api/contacts', {
+      const postRes = await apiFetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formNome,
-          phone: formTelefone || '5581999999999',
-          current_stage: formPipeline,
-          project_value: formValorEstimado ? parseFloat(formValorEstimado) : 0.0
-        })
+        body: JSON.stringify(leadData)
+      });
+      if (!postRes.ok) throw new Error('Falha ao salvar no servidor.');
+      
+      const savedContact = await postRes.json();
+      let parsedSaved = { ...savedContact };
+      if (savedContact.custom_fields) {
+        try {
+          parsedSaved = { ...savedContact, ...JSON.parse(savedContact.custom_fields) };
+        } catch (e) {}
+      }
+
+      // Sync successful: remove from local storage if it was there
+      const stored = localStorage.getItem('dgflow_local_contacts');
+      const locals = stored ? JSON.parse(stored) : [];
+      const updatedLocals = locals.filter(c => String(c.id) !== String(contactId));
+      localStorage.setItem('dgflow_local_contacts', JSON.stringify(updatedLocals));
+
+      // Update state
+      setContacts(prev => {
+        const filtered = prev.filter(c => String(c.id) !== String(contactId) && String(c.id) !== String(parsedSaved.id));
+        filtered.unshift(parsedSaved);
+        return filtered.sort((a, b) => new Date(b.last_activity || Date.now()) - new Date(a.last_activity || Date.now()));
       });
     } catch (err) {
-      console.warn('Falha ao sincronizar com backend:', err.message);
+      console.warn('Falha ao sincronizar com backend, mantendo localmente:', err.message);
+      
+      // Fallback: save to local storage
+      const stored = localStorage.getItem('dgflow_local_contacts');
+      const locals = stored ? JSON.parse(stored) : [];
+      const idx = locals.findIndex(c => c.id === contactId);
+      if (idx !== -1) {
+        locals[idx] = leadData;
+      } else {
+        locals.unshift(leadData);
+      }
+      localStorage.setItem('dgflow_local_contacts', JSON.stringify(locals));
+
+      // Update state
+      setContacts(prev => {
+        const filtered = prev.filter(c => c.id !== contactId);
+        filtered.unshift(leadData);
+        return filtered.sort((a, b) => new Date(b.last_activity) - new Date(a.last_activity));
+      });
     }
 
     setIsCadastrarModalOpen(false);

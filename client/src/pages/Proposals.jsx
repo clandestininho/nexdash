@@ -269,7 +269,7 @@ export default function Proposals() {
     }
   };
 
-  const handleSaveConfigs = () => {
+  const handleSaveConfigs = async () => {
     localStorage.setItem('dgflow_prop_primary_color', primaryColor);
     localStorage.setItem('dgflow_prop_secondary_color', secondaryColor);
     localStorage.setItem('dgflow_prop_custom_title', customTitle);
@@ -289,6 +289,29 @@ export default function Proposals() {
     } else {
       localStorage.removeItem('dgflow_prop_favicon');
     }
+
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_prop_primary_color: primaryColor,
+          dgflow_prop_secondary_color: secondaryColor,
+          dgflow_prop_custom_title: customTitle,
+          dgflow_prop_custom_welcome: customWelcome,
+          dgflow_prop_custom_btn_text: customBtnText,
+          dgflow_prop_custom_thanks: customThanks,
+          dgflow_prop_show_reviews: showReviews.toString(),
+          dgflow_prop_show_projects: showProjects.toString(),
+          dgflow_prop_max_projects: maxProjects.toString(),
+          dgflow_prop_logo: proposalLogo || '',
+          dgflow_prop_favicon: proposalFavicon || ''
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao salvar configurações no servidor:', err);
+    }
+
     alert('Configurações salvas com sucesso! A página de aprovação do cliente foi atualizada.');
   };
 
@@ -349,8 +372,23 @@ export default function Proposals() {
         const res = await apiFetch('/api/settings');
         if (res.ok) {
           const data = await res.json();
-          if (data.profile_moeda) {
-            setProfileMoeda(data.profile_moeda);
+          if (data) {
+            if (data.profile_moeda) setProfileMoeda(data.profile_moeda);
+            if (data.dgflow_prop_primary_color) setPrimaryColor(data.dgflow_prop_primary_color);
+            if (data.dgflow_prop_secondary_color) setSecondaryColor(data.dgflow_prop_secondary_color);
+            if (data.dgflow_prop_custom_title) setCustomTitle(data.dgflow_prop_custom_title);
+            if (data.dgflow_prop_custom_welcome) setCustomWelcome(data.dgflow_prop_custom_welcome);
+            if (data.dgflow_prop_custom_btn_text) setCustomBtnText(data.dgflow_prop_custom_btn_text);
+            if (data.dgflow_prop_custom_thanks) setCustomThanks(data.dgflow_prop_custom_thanks);
+            if (data.dgflow_prop_show_reviews) setShowReviews(data.dgflow_prop_show_reviews === 'true');
+            if (data.dgflow_prop_show_projects) setShowProjects(data.dgflow_prop_show_projects !== 'false');
+            if (data.dgflow_prop_max_projects) setMaxProjects(parseInt(data.dgflow_prop_max_projects) || 4);
+            if (data.dgflow_prop_logo) setProposalLogo(data.dgflow_prop_logo);
+            if (data.dgflow_prop_favicon) setProposalFavicon(data.dgflow_prop_favicon);
+            if (data.dgflow_active_template) {
+              setActiveTemplate(data.dgflow_active_template);
+              setTemplateBody(data.dgflow_active_template);
+            }
           }
         }
       } catch (err) {
@@ -478,9 +516,20 @@ export default function Proposals() {
     localStorage.setItem('dgflow_proposals', JSON.stringify(newProps));
   };
 
-  const saveActiveTemplateToStorage = (text) => {
+  const saveActiveTemplateToStorage = async (text) => {
     setActiveTemplate(text);
     localStorage.setItem('dgflow_active_template', text);
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_active_template: text
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao salvar template ativo no servidor:', err);
+    }
   };
 
   // Calculate subtotal, discount and final values dynamically

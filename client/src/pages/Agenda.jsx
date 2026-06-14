@@ -168,41 +168,62 @@ export default function Agenda() {
 
   useEffect(() => {
     const loadEventsAndSettings = async () => {
-      // 1. Load local events
-      const stored = localStorage.getItem('dgflow_events');
-      if (stored) {
-        setEvents(JSON.parse(stored));
-      } else {
-        setEvents(INITIAL_EVENTS);
-        localStorage.setItem('dgflow_events', JSON.stringify(INITIAL_EVENTS));
-      }
-
-      // 2. Load settings for calendars
+      // 1. Fetch settings to load events and calendars
+      let loadedEvents = null;
       try {
         const res = await apiFetch('/api/settings');
         if (res.ok) {
           const data = await res.json();
-          if (data.google_calendar_ical_url) {
-            setGoogleCalendarUrl(data.google_calendar_ical_url);
-            setGoogleConnected(true);
-            fetchAndParseCalendarFeed(data.google_calendar_ical_url, 'google');
-          }
-          if (data.apple_calendar_ical_url) {
-            setAppleCalendarUrl(data.apple_calendar_ical_url);
-            setIcalSubscribed(true);
-            fetchAndParseCalendarFeed(data.apple_calendar_ical_url, 'apple');
+          if (data) {
+            if (data.dgflow_events) {
+              loadedEvents = JSON.parse(data.dgflow_events);
+              setEvents(loadedEvents);
+              localStorage.setItem('dgflow_events', data.dgflow_events);
+            }
+            if (data.google_calendar_ical_url) {
+              setGoogleCalendarUrl(data.google_calendar_ical_url);
+              setGoogleConnected(true);
+              fetchAndParseCalendarFeed(data.google_calendar_ical_url, 'google');
+            }
+            if (data.apple_calendar_ical_url) {
+              setAppleCalendarUrl(data.apple_calendar_ical_url);
+              setIcalSubscribed(true);
+              fetchAndParseCalendarFeed(data.apple_calendar_ical_url, 'apple');
+            }
           }
         }
       } catch (err) {
-        console.error('Erro ao carregar configurações de calendário:', err);
+        console.error('Erro ao carregar configurações e eventos:', err);
+      }
+
+      // Fallback if events not loaded from server
+      if (!loadedEvents) {
+        const stored = localStorage.getItem('dgflow_events');
+        if (stored) {
+          setEvents(JSON.parse(stored));
+        } else {
+          setEvents(INITIAL_EVENTS);
+          localStorage.setItem('dgflow_events', JSON.stringify(INITIAL_EVENTS));
+        }
       }
     };
     loadEventsAndSettings();
   }, []);
 
-  const saveEvents = (newEvents) => {
+  const saveEvents = async (newEvents) => {
     setEvents(newEvents);
     localStorage.setItem('dgflow_events', JSON.stringify(newEvents));
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_events: JSON.stringify(newEvents)
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao salvar eventos no servidor:', err);
+    }
   };
 
   const handlePrevMonth = () => {

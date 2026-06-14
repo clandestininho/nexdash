@@ -166,38 +166,60 @@ export default function Kanban() {
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch settings to sync custom pipelines
+      // Fetch settings to sync custom pipelines, webhooks, and auto-leads
       try {
         const settingsRes = await apiFetch('/api/settings');
         const settingsData = await settingsRes.json();
         setSettings(settingsData || {});
-        if (settingsData && settingsData.dgflow_custom_pipelines) {
-          const parsed = JSON.parse(settingsData.dgflow_custom_pipelines);
-          // Migrate em-contato to qualificando if present in 'principal' pipeline
-          const migrated = parsed.map(p => {
-            if (p.id === 'principal') {
-              return {
-                ...p,
-                stages: p.stages.map(s => s.id === 'em-contato' ? { ...s, id: 'qualificando', label: 'Qualificando' } : s)
-              };
-            }
-            return p;
-          });
-          setPipelines(migrated);
-          localStorage.setItem('dgflow_custom_pipelines', JSON.stringify(migrated));
+        
+        if (settingsData) {
+          if (settingsData.dgflow_custom_pipelines) {
+            const parsed = JSON.parse(settingsData.dgflow_custom_pipelines);
+            // Migrate em-contato to qualificando if present in 'principal' pipeline
+            const migrated = parsed.map(p => {
+              if (p.id === 'principal') {
+                return {
+                  ...p,
+                  stages: p.stages.map(s => s.id === 'em-contato' ? { ...s, id: 'qualificando', label: 'Qualificando' } : s)
+                };
+              }
+              return p;
+            });
+            setPipelines(migrated);
+            localStorage.setItem('dgflow_custom_pipelines', JSON.stringify(migrated));
+          }
+          if (settingsData.dgflow_webhooks) {
+            const parsedWebhooks = JSON.parse(settingsData.dgflow_webhooks);
+            setWebhooks(parsedWebhooks);
+            localStorage.setItem('dgflow_webhooks', JSON.stringify(parsedWebhooks));
+          }
+          if (settingsData.dgflow_autolead_settings) {
+            const parsedAutoLead = JSON.parse(settingsData.dgflow_autolead_settings);
+            setAutoLeadSettings(parsedAutoLead);
+            localStorage.setItem('dgflow_autolead_settings', JSON.stringify(parsedAutoLead));
+          }
         }
       } catch (err) {
-        console.error('Erro ao buscar configurações de pipelines:', err);
+        console.error('Erro ao buscar configurações de pipelines/webhooks/auto-leads:', err);
       }
 
       const res = await apiFetch('/api/contacts');
       const data = await res.json();
       const stagesData = data.stages || {};
       
-      // Flatten
+      // Flatten & parse custom fields
       const flat = [];
       Object.keys(stagesData).forEach((stageId) => {
-        flat.push(...(stagesData[stageId] || []));
+        const stageContacts = (stagesData[stageId] || []).map(c => {
+          let parsedFields = {};
+          if (c.custom_fields) {
+            try {
+              parsedFields = JSON.parse(c.custom_fields);
+            } catch (e) {}
+          }
+          return { ...c, ...parsedFields };
+        });
+        flat.push(...stageContacts);
       });
       
       const stored = localStorage.getItem('dgflow_local_contacts');
@@ -471,6 +493,34 @@ export default function Kanban() {
     setIsNewCaptureModalOpen(true);
   };
 
+  const saveWebhooksToServer = async (updatedWebhooks) => {
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_webhooks: JSON.stringify(updatedWebhooks)
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao salvar webhooks no servidor:', err);
+    }
+  };
+
+  const saveAutoLeadSettingsToServer = async (settingsObj) => {
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_autolead_settings: JSON.stringify(settingsObj)
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao salvar configurações de auto-lead no servidor:', err);
+    }
+  };
+
   const handleGenerateWebhookSubmit = (e) => {
     if (e) e.preventDefault();
     if (!newCaptureForm.name) {
@@ -491,6 +541,7 @@ export default function Kanban() {
     const updated = [...webhooks, newW];
     setWebhooks(updated);
     localStorage.setItem('dgflow_webhooks', JSON.stringify(updated));
+    saveWebhooksToServer(updated);
 
     // Reset Form & Close Capture Modal, return to Webhooks list
     setNewCaptureForm({
@@ -509,14 +560,16 @@ export default function Kanban() {
       const updated = webhooks.filter(w => w.id !== id);
       setWebhooks(updated);
       localStorage.setItem('dgflow_webhooks', JSON.stringify(updated));
+      saveWebhooksToServer(updated);
     }
   };
 
   // Auto-lead Settings save
   const handleSaveAutoLead = (active, pId, startCol) => {
-    const settings = { active, pipelineId: pId, initialStage: startCol };
-    setAutoLeadSettings(settings);
-    localStorage.setItem('dgflow_autolead_settings', JSON.stringify(settings));
+    const settingsObj = { active, pipelineId: pId, initialStage: startCol };
+    setAutoLeadSettings(settingsObj);
+    localStorage.setItem('dgflow_autolead_settings', JSON.stringify(settingsObj));
+    saveAutoLeadSettingsToServer(settingsObj);
     setIsAutoLeadModalOpen(false);
   };
 

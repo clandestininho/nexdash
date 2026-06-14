@@ -175,14 +175,14 @@ export default function createContactsRouter(io) {
   router.post('/', authenticateToken, (req, res) => {
     const userId = req.user.id;
     try {
-      const { name, phone, current_stage, project_value, pipeline_id } = req.body;
+      const { id, name, phone, current_stage, project_value, pipeline_id, ...customFields } = req.body;
       if (!name || !phone) {
         return res.status(400).json({ error: 'Nome e telefone são obrigatórios.' });
       }
 
-      // Format JID
-      let jid = phone;
-      if (!jid.includes('@')) {
+      // Format JID or use custom id
+      let jid = id || phone;
+      if (!jid.includes('@') && !jid.startsWith('cli-')) {
         jid = `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
       }
 
@@ -195,7 +195,8 @@ export default function createContactsRouter(io) {
         pipeline_id: pipeline_id || 'principal',
         last_activity: new Date().toISOString(),
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        ...customFields
       };
 
       upsertContact(userId, newContact);
@@ -271,40 +272,29 @@ export default function createContactsRouter(io) {
     const contactId = req.params.id;
 
     try {
-      const { stage, reason, project_value, pipeline_id } = req.body;
+      const { stage, reason, ...fieldsToUpdate } = req.body;
 
       const contact = getContactById(userId, contactId);
       if (!contact) {
         return res.status(404).json({ error: 'Contato não encontrado.' });
       }
 
-      // Handle pipeline_id update if present
-      if (pipeline_id !== undefined) {
+      // Update any provided fields (including project_value, pipeline_id, and custom fields)
+      if (Object.keys(fieldsToUpdate).length > 0) {
         try {
-          upsertContact(userId, {
-            id: contactId,
-            pipeline_id: pipeline_id,
-          });
+          const updateData = { id: contactId, ...fieldsToUpdate };
+          if (updateData.project_value !== undefined) {
+            updateData.project_value = parseFloat(updateData.project_value) || 0;
+          }
+          upsertContact(userId, updateData);
         } catch (err) {
-          console.error(`[Route:Contacts] User ${userId}: Error updating pipeline_id:`, err.message);
-        }
-      }
-
-      // Handle project value update if present
-      if (project_value !== undefined) {
-        try {
-          upsertContact(userId, {
-            id: contactId,
-            project_value: parseFloat(project_value) || 0,
-          });
-        } catch (err) {
-          console.error(`[Route:Contacts] User ${userId}: Error updating project value:`, err.message);
+          console.error(`[Route:Contacts] User ${userId}: Error updating contact fields:`, err.message);
         }
       }
 
       // Handle stage override if stage is provided
       if (stage) {
-        const targetPipeline = pipeline_id !== undefined ? pipeline_id : (contact.pipeline_id || 'principal');
+        const targetPipeline = fieldsToUpdate.pipeline_id !== undefined ? fieldsToUpdate.pipeline_id : (contact.pipeline_id || 'principal');
         if (targetPipeline === 'principal' && !VALID_STAGES.includes(stage)) {
           return res.status(400).json({
             error: `Estágio inválido. Deve ser um de: ${VALID_STAGES.join(', ')}`,

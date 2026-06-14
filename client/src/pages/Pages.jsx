@@ -114,22 +114,6 @@ export default function Pages() {
   ];
 
   useEffect(() => {
-    const stored = localStorage.getItem('dgflow_portfolio_projects');
-    if (stored) {
-      setProjects(JSON.parse(stored));
-    } else {
-      setProjects(INITIAL_PROJECTS);
-      localStorage.setItem('dgflow_portfolio_projects', JSON.stringify(INITIAL_PROJECTS));
-    }
-
-    const storedMeetings = localStorage.getItem('dgflow_meeting_types');
-    if (storedMeetings) {
-      setMeetingTypes(JSON.parse(storedMeetings));
-    } else {
-      setMeetingTypes(INITIAL_MEETING_TYPES);
-      localStorage.setItem('dgflow_meeting_types', JSON.stringify(INITIAL_MEETING_TYPES));
-    }
-
     // Load configurations saved in the SQLite settings database
     const loadSettings = async () => {
       try {
@@ -153,6 +137,34 @@ export default function Pages() {
             if (data.sched_pipeline_stage) setSchedPipelineStage(data.sched_pipeline_stage);
             if (data.sched_welcome_msg) setSchedWelcomeMsg(data.sched_welcome_msg);
             if (data.sched_confirm_msg) setSchedConfirmMsg(data.sched_confirm_msg);
+
+            // Load portfolio projects
+            if (data.dgflow_portfolio_projects) {
+              setProjects(JSON.parse(data.dgflow_portfolio_projects));
+              localStorage.setItem('dgflow_portfolio_projects', data.dgflow_portfolio_projects);
+            } else {
+              const stored = localStorage.getItem('dgflow_portfolio_projects');
+              if (stored) {
+                setProjects(JSON.parse(stored));
+              } else {
+                setProjects(INITIAL_PROJECTS);
+                localStorage.setItem('dgflow_portfolio_projects', JSON.stringify(INITIAL_PROJECTS));
+              }
+            }
+
+            // Load meeting types
+            if (data.dgflow_meeting_types) {
+              setMeetingTypes(JSON.parse(data.dgflow_meeting_types));
+              localStorage.setItem('dgflow_meeting_types', data.dgflow_meeting_types);
+            } else {
+              const storedMeetings = localStorage.getItem('dgflow_meeting_types');
+              if (storedMeetings) {
+                setMeetingTypes(JSON.parse(storedMeetings));
+              } else {
+                setMeetingTypes(INITIAL_MEETING_TYPES);
+                localStorage.setItem('dgflow_meeting_types', JSON.stringify(INITIAL_MEETING_TYPES));
+              }
+            }
           }
         }
       } catch (err) {
@@ -162,14 +174,38 @@ export default function Pages() {
     loadSettings();
   }, []);
 
-  const saveProjects = (updatedList) => {
+  const saveProjects = async (updatedList) => {
     setProjects(updatedList);
     localStorage.setItem('dgflow_portfolio_projects', JSON.stringify(updatedList));
+    try {
+      const { apiFetch } = await import('../lib/api');
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_portfolio_projects: JSON.stringify(updatedList)
+        })
+      });
+    } catch (err) {
+      console.error('[Pages] Error saving projects to server:', err);
+    }
   };
 
-  const saveMeetings = (updatedList) => {
+  const saveMeetings = async (updatedList) => {
     setMeetingTypes(updatedList);
     localStorage.setItem('dgflow_meeting_types', JSON.stringify(updatedList));
+    try {
+      const { apiFetch } = await import('../lib/api');
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dgflow_meeting_types: JSON.stringify(updatedList)
+        })
+      });
+    } catch (err) {
+      console.error('[Pages] Error saving meetings to server:', err);
+    }
   };
 
   const handleCopyLink = () => {

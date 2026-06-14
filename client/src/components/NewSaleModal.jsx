@@ -282,6 +282,15 @@ export default function NewSaleModal() {
     const updated = [newTx, ...currentTxs];
     localStorage.setItem('dgflow_transactions', JSON.stringify(updated));
 
+    // Sync to backend settings
+    apiFetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dgflow_transactions: JSON.stringify(updated)
+      })
+    }).catch(err => console.error('Erro ao sincronizar transação no servidor:', err));
+
     // Simulate task creation if switch is ON
     if (qsGenerateTask) {
       const storedHistory = localStorage.getItem('dgflow_task_history') || '[]';
@@ -342,6 +351,13 @@ export default function NewSaleModal() {
     }
     const updated = [newProposal, ...currentProps];
     localStorage.setItem('dgflow_proposals', JSON.stringify(updated));
+
+    // Try to sync with server
+    apiFetch('/api/proposals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProposal)
+    }).catch(err => console.error('Erro ao salvar proposta no servidor:', err));
 
     // Trigger reactive window reload event
     window.dispatchEvent(new CustomEvent('dgflow_proposals_updated'));
